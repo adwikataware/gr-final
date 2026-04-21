@@ -4,9 +4,9 @@ steps:
     args:
       - build
       - -t
-      - us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
       - -t
-      - us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:latest
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:latest
       - ./gr-rating
     id: build-backend
 
@@ -15,9 +15,9 @@ steps:
     args:
       - build
       - -t
-      - us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
       - -t
-      - us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:latest
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:latest
       - --build-arg
       - NEXT_PUBLIC_API_URL=https://api.grconnect.org
       - ./gr-connect
@@ -25,12 +25,12 @@ steps:
 
   # Push backend
   - name: 'gcr.io/cloud-builders/docker'
-    args: [push, us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA]
+    args: [push, asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA]
     waitFor: [build-backend]
 
   # Push frontend
   - name: 'gcr.io/cloud-builders/docker'
-    args: [push, us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA]
+    args: [push, asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA]
     waitFor: [build-frontend]
 
   # Deploy backend to Cloud Run
@@ -40,7 +40,7 @@ steps:
       - run
       - deploy
       - gr-connect-backend
-      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
+      - --image=asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
       - --region=asia-south1
       - --platform=managed
       - --allow-unauthenticated
@@ -57,7 +57,7 @@ steps:
       - run
       - deploy
       - gr-connect-frontend
-      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
+      - --image=asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
       - --region=asia-south1
       - --platform=managed
       - --allow-unauthenticated
@@ -68,8 +68,8 @@ steps:
     waitFor: [build-frontend]
 
 images:
-  - us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
-  - us-central1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
+  - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
+  - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
 
 options:
   logging: CLOUD_LOGGING_ONLY
