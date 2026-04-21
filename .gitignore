@@ -1,0 +1,17 @@
+# Node
+gr-connect/node_modules/
+gr-connect/.next/
+gr-connect/.env*
+
+# Python
+gr-rating/__pycache__/
+gr-rating/*.pyc
+gr-rating/.env*
+gr-rating/venv/
+gr-rating/.venv/
+
+# General
+*.log
+.DS_Store
+nul
+stitch_gr_connect_home_hero_section
