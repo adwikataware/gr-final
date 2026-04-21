@@ -25,12 +25,20 @@ steps:
 
   # Push backend
   - name: 'gcr.io/cloud-builders/docker'
-    args: [push, asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA]
+    args:
+      - push
+      - --all-tags
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend
+    id: push-backend
     waitFor: [build-backend]
 
   # Push frontend
   - name: 'gcr.io/cloud-builders/docker'
-    args: [push, asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA]
+    args:
+      - push
+      - --all-tags
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend
+    id: push-frontend
     waitFor: [build-frontend]
 
   # Deploy backend to Cloud Run
@@ -48,7 +56,8 @@ steps:
       - --max-instances=100
       - --memory=2Gi
       - --cpu=2
-    waitFor: [build-backend]
+    id: deploy-backend
+    waitFor: [push-backend]
 
   # Deploy frontend to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -65,7 +74,8 @@ steps:
       - --max-instances=50
       - --memory=1Gi
       - --cpu=1
-    waitFor: [build-frontend]
+    id: deploy-frontend
+    waitFor: [push-frontend]
 
 images:
   - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
