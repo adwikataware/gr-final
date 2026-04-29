@@ -6,6 +6,11 @@ import { useRouter } from "next/navigation";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { experts, sdgData } from "@/data/mockData";
 import CountUp from "@/components/CountUp";
+import { useAuth } from "@/lib/AuthContext";
+import {
+  collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
@@ -215,9 +220,12 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
   const pubRef = useRef(null);
   const pubInView = useInView(pubRef, { once: true, margin: "-60px" });
 
+  const { user, profile, isLoggedIn } = useAuth();
   const [aiQuery, setAiQuery] = useState("");
   const [aiResponse, setAiResponse] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
   const [showPremiumInput, setShowPremiumInput] = useState(false);
+  const [messageSending, setMessageSending] = useState(false);
 
   if (!expert) {
     return (
@@ -234,11 +242,72 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
   const ratingProgress = (expert.grRating / 100) * circumference;
   const impactPercentile = Math.min(Math.round(expert.grRating * 0.88), 99);
 
-  const handleAiSubmit = () => {
-    if (!aiQuery.trim()) return;
-    setAiResponse(
-      `Based on ${expert.name}'s research in ${expert.expertise[0]}, their published work extensively covers this topic. Their key findings in "${expert.keyPublications[0]?.title}" provide foundational insights. I'd recommend reviewing their ${expert.publications} publications for comprehensive coverage, particularly the work in ${expert.keyPublications[0]?.journal}.`
-    );
+  const handleAiSubmit = async () => {
+    if (!aiQuery.trim() || aiLoading) return;
+    setAiLoading(true);
+    setAiResponse("");
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: aiQuery,
+          expertName: expert.name,
+          expertise: expert.expertise,
+          publications: expert.publications,
+        }),
+      });
+      const data = await res.json();
+      setAiResponse(data.answer ?? data.error ?? "No response.");
+    } catch {
+      setAiResponse("Failed to get AI response. Please try again.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleStartConversation = async () => {
+    if (!isLoggedIn || !user) { router.push("/login"); return; }
+    if (messageSending) return;
+    setMessageSending(true);
+    try {
+      // Check if conversation already exists
+      const q = query(
+        collection(db, "conversations"),
+        where("participants", "array-contains", user.uid)
+      );
+      const snap = await getDocs(q);
+      const existing = snap.docs.find((d) => {
+        const parts = d.data().participants as string[];
+        return parts.includes(expert.id);
+      });
+      if (existing) {
+        router.push("/messages");
+        return;
+      }
+      // Fetch expert's Firestore profile for name/photo
+      const expertDoc = await getDoc(doc(db, "users", expert.id)).catch(() => null);
+      const expertData = expertDoc?.data();
+      await addDoc(collection(db, "conversations"), {
+        participants: [user.uid, expert.id],
+        participantNames: {
+          [user.uid]: profile?.displayName || user.displayName || "You",
+          [expert.id]: expertData?.displayName || expert.name,
+        },
+        participantPhotos: {
+          [user.uid]: profile?.photoURL || user.photoURL || "",
+          [expert.id]: expertData?.photoURL || expert.avatar || "",
+        },
+        lastMessage: "",
+        lastMessageAt: serverTimestamp(),
+        createdAt: serverTimestamp(),
+      });
+      router.push("/messages");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setMessageSending(false);
+    }
   };
 
   const otherExperts = experts.filter((e) => e.id !== expert.id).slice(0, 2);
@@ -706,11 +775,18 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                   />
                   <button
                     onClick={handleAiSubmit}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-accent-tan hover:text-white transition-colors duration-300"
+                    disabled={aiLoading}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-accent-tan hover:text-white transition-colors duration-300 disabled:opacity-50"
                   >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path d="M5 12h14M12 5l7 7-7 7" />
-                    </svg>
+                    {aiLoading ? (
+                      <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M12 3v3m0 12v3M3 12h3m12 0h3" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path d="M5 12h14M12 5l7 7-7 7" />
+                      </svg>
+                    )}
                   </button>
                 </div>
 
@@ -776,8 +852,12 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                         placeholder="Write your message..."
                         className="w-full p-3 text-sm border border-warm-brown/20 rounded-lg bg-cream-bg focus:ring-1 focus:ring-warm-brown focus:border-warm-brown outline-none resize-none"
                       />
-                      <button className="w-full mt-2 bg-charcoal text-white text-sm font-medium py-2.5 rounded-lg hover:bg-charcoal-light transition-colors">
-                        Send Message
+                      <button
+                        onClick={handleStartConversation}
+                        disabled={messageSending}
+                        className="w-full mt-2 bg-charcoal text-white text-sm font-medium py-2.5 rounded-lg hover:bg-charcoal-light transition-colors disabled:opacity-50"
+                      >
+                        {messageSending ? "Opening chat..." : "Send Message"}
                       </button>
                     </div>
                   </motion.div>
