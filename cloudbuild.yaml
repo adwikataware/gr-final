@@ -1,5 +1,5 @@
 steps:
-  # Build backend
+  # 1. Build backend
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - build
@@ -10,20 +10,7 @@ steps:
       - ./gr-rating
     id: build-backend
 
-  # Build frontend
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - build
-      - -t
-      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
-      - -t
-      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:latest
-      - --build-arg
-      - NEXT_PUBLIC_API_URL=https://api.grconnect.org
-      - ./gr-connect
-    id: build-frontend
-
-  # Push backend
+  # 2. Push backend
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - push
@@ -32,16 +19,7 @@ steps:
     id: push-backend
     waitFor: [build-backend]
 
-  # Push frontend
-  - name: 'gcr.io/cloud-builders/docker'
-    args:
-      - push
-      - --all-tags
-      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend
-    id: push-frontend
-    waitFor: [build-frontend]
-
-  # Deploy backend to Cloud Run
+  # 3. Deploy backend
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -59,7 +37,30 @@ steps:
     id: deploy-backend
     waitFor: [push-backend]
 
-  # Deploy frontend to Cloud Run
+  # 4. Build frontend (after backend is done to avoid memory contention)
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - -t
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
+      - -t
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:latest
+      - --build-arg
+      - NEXT_PUBLIC_API_URL=https://api.grconnect.org
+      - ./gr-connect
+    id: build-frontend
+    waitFor: [deploy-backend]
+
+  # 5. Push frontend
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - --all-tags
+      - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend
+    id: push-frontend
+    waitFor: [build-frontend]
+
+  # 6. Deploy frontend
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -83,3 +84,4 @@ images:
 
 options:
   logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
