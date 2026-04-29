@@ -4,8 +4,23 @@ import React, { use, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useInView, AnimatePresence } from "framer-motion";
-import { experts, sdgData } from "@/data/mockData";
-import CountUp from "@/components/CountUp";
+import { sdgData } from "@/data/mockData";
+// CountUp removed - metrics now come from API
+
+interface ExpertData {
+  id: string;
+  name: string;
+  affiliation: string;
+  bio: string;
+  photo_url: string;
+  topics: string[];
+  sdg_ids: number[];
+  gr_rating: number;
+  tier: string;
+  tier_label: string;
+  rank: number | null;
+  orcid: string;
+}
 import { useAuth } from "@/lib/AuthContext";
 import {
   collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc,
@@ -206,17 +221,16 @@ function CalendarWidget({ onBook }: { onBook: () => void }) {
 export default function ExpertProfilePage(props: ExpertPageProps) {
   const params = use(props.params);
   const router = useRouter();
-  const expert = experts.find((e) => e.id === params.id);
+
+  const [expert, setExpert] = useState<ExpertData | null>(null);
+  const [fetchLoading, setFetchLoading] = useState(true);
 
   const mainRef = useRef(null);
   const mainInView = useInView(mainRef, { once: true, margin: "-60px" });
-
   const ratingRef = useRef(null);
   const ratingInView = useInView(ratingRef, { once: true, margin: "-60px" });
-
   const sdgRef = useRef(null);
   const sdgInView = useInView(sdgRef, { once: true, margin: "-60px" });
-
   const pubRef = useRef(null);
   const pubInView = useInView(pubRef, { once: true, margin: "-60px" });
 
@@ -226,6 +240,22 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [showPremiumInput, setShowPremiumInput] = useState(false);
   const [messageSending, setMessageSending] = useState(false);
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    fetch(`${apiUrl}/api/v1/discover/${params.id}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { setExpert(data); setFetchLoading(false); })
+      .catch(() => setFetchLoading(false));
+  }, [params.id]);
+
+  if (fetchLoading) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-warm-brown border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!expert) {
     return (
@@ -239,8 +269,8 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
   }
 
   const circumference = 2 * Math.PI * 60;
-  const ratingProgress = (expert.grRating / 100) * circumference;
-  const impactPercentile = Math.min(Math.round(expert.grRating * 0.88), 99);
+  const ratingProgress = (expert.gr_rating / 100) * circumference;
+  const impactPercentile = Math.min(Math.round(expert.gr_rating * 0.88), 99);
 
   const handleAiSubmit = async () => {
     if (!aiQuery.trim() || aiLoading) return;
@@ -253,8 +283,8 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
         body: JSON.stringify({
           question: aiQuery,
           expertName: expert.name,
-          expertise: expert.expertise,
-          publications: expert.publications,
+          expertise: expert.topics,
+          publications: 0,
         }),
       });
       const data = await res.json();
@@ -271,21 +301,10 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
     if (messageSending) return;
     setMessageSending(true);
     try {
-      // Check if conversation already exists
-      const q = query(
-        collection(db, "conversations"),
-        where("participants", "array-contains", user.uid)
-      );
+      const q = query(collection(db, "conversations"), where("participants", "array-contains", user.uid));
       const snap = await getDocs(q);
-      const existing = snap.docs.find((d) => {
-        const parts = d.data().participants as string[];
-        return parts.includes(expert.id);
-      });
-      if (existing) {
-        router.push("/messages");
-        return;
-      }
-      // Fetch expert's Firestore profile for name/photo
+      const existing = snap.docs.find((d) => (d.data().participants as string[]).includes(expert.id));
+      if (existing) { router.push("/messages"); return; }
       const expertDoc = await getDoc(doc(db, "users", expert.id)).catch(() => null);
       const expertData = expertDoc?.data();
       await addDoc(collection(db, "conversations"), {
@@ -296,7 +315,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
         },
         participantPhotos: {
           [user.uid]: profile?.photoURL || user.photoURL || "",
-          [expert.id]: expertData?.photoURL || expert.avatar || "",
+          [expert.id]: expertData?.photoURL || expert.photo_url || "",
         },
         lastMessage: "",
         lastMessageAt: serverTimestamp(),
@@ -310,10 +329,8 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
     }
   };
 
-  const otherExperts = experts.filter((e) => e.id !== expert.id).slice(0, 2);
-
   // Determine active and inactive SDGs for display
-  const activeSdgs = expert.sdgs;
+  const activeSdgs = expert.sdg_ids;
   const inactiveSdgs = [4, 7, 15].filter((s) => !activeSdgs.includes(s));
   const allDisplaySdgs = [...activeSdgs, ...inactiveSdgs];
 
@@ -345,7 +362,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
               >
                 <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-sm overflow-hidden shadow-md border border-warm-brown/20">
                   <img
-                    src={expert.avatar}
+                    src={expert.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(expert.name)}&background=8B5E3C&color=fff&size=200`}
                     alt={expert.name}
                     className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
                   />
@@ -371,27 +388,25 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                       transition={{ duration: 0.5, delay: 0.4 }}
                       className="text-warm-brown font-medium mt-2 font-serif text-lg italic"
                     >
-                      {expert.expertise[0]} & {expert.expertise[1]}
+                      {expert.topics[0]}{expert.topics[1] ? ` & ${expert.topics[1]}` : ""}
                     </motion.p>
                   </div>
 
                   {/* Verified badge */}
-                  {expert.verified && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={mainInView ? { opacity: 1, scale: 1 } : {}}
-                      transition={{ duration: 0.4, delay: 0.5 }}
-                      className="flex items-center gap-2 bg-charcoal text-cream-bg px-3 py-1 rounded-full self-start"
-                    >
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                      <span className="text-xs font-semibold uppercase tracking-wider">Verified</span>
-                    </motion.div>
-                  )}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={mainInView ? { opacity: 1, scale: 1 } : {}}
+                    transition={{ duration: 0.4, delay: 0.5 }}
+                    className="flex items-center gap-2 bg-charcoal text-cream-bg px-3 py-1 rounded-full self-start"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span className="text-xs font-semibold uppercase tracking-wider">{expert.tier_label}</span>
+                  </motion.div>
                 </div>
 
-                {/* Institution & Location */}
+                {/* Institution */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={mainInView ? { opacity: 1 } : {}}
@@ -401,7 +416,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                   <svg className="w-[18px] h-[18px] text-warm-brown" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                     <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                   </svg>
-                  <span className="font-medium text-charcoal/80">{expert.institution}</span>
+                  <span className="font-medium text-charcoal/80">{expert.affiliation}</span>
                 </motion.div>
 
                 {/* Bio */}
@@ -414,14 +429,14 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                   {expert.bio}
                 </motion.p>
 
-                {/* Expertise tags */}
+                {/* Topic tags */}
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={mainInView ? { opacity: 1 } : {}}
                   transition={{ duration: 0.5, delay: 0.7 }}
                   className="mt-6 flex flex-wrap gap-2"
                 >
-                  {expert.expertise.map((tag) => (
+                  {expert.topics.map((tag) => (
                     <span
                       key={tag}
                       className="px-3 py-1.5 rounded-full bg-cream-bg text-xs font-medium text-charcoal border border-warm-brown/20 hover:border-warm-brown transition-colors cursor-default"
@@ -480,7 +495,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                     transition={{ duration: 0.5, delay: 1 }}
                     className="text-4xl font-serif font-medium text-charcoal"
                   >
-                    {expert.grRating}
+                    {expert.gr_rating}
                   </motion.span>
                   <span className="text-[9px] font-bold text-warm-brown uppercase tracking-[0.15em] mt-1">GR Rating</span>
                 </div>
@@ -495,7 +510,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                 </svg>
-                {expert.ratingTier}
+                {expert.tier} · {expert.tier_label}
               </motion.div>
             </motion.div>
 
@@ -515,29 +530,21 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-8 h-full items-center divide-x divide-warm-brown/20">
+              <div className="grid grid-cols-2 gap-8 h-full items-center divide-x divide-warm-brown/20">
                 <div className="text-center">
-                  <div className="text-3xl font-serif font-medium text-charcoal">
-                    <CountUp target={expert.citations} className="text-3xl font-serif font-medium text-charcoal" />
-                  </div>
-                  <div className="text-xs text-text-muted mt-2 font-medium tracking-wide uppercase">
-                    Total Citations
-                  </div>
-                </div>
-                <div className="text-center pl-8">
                   <div className="text-3xl font-serif font-medium text-warm-brown">
-                    <CountUp target={expert.hIndex} className="text-3xl font-serif font-medium text-warm-brown" />
+                    {expert.rank ? `#${expert.rank}` : "—"}
                   </div>
                   <div className="text-xs text-text-muted mt-2 font-medium tracking-wide uppercase">
-                    H-Index
+                    GR Rank
                   </div>
                 </div>
                 <div className="text-center pl-8">
                   <div className="text-3xl font-serif font-medium text-charcoal">
-                    <CountUp target={expert.i10Index} className="text-3xl font-serif font-medium text-charcoal" />
+                    {expert.tier}
                   </div>
                   <div className="text-xs text-text-muted mt-2 font-medium tracking-wide uppercase">
-                    I10-Index
+                    Tier
                   </div>
                 </div>
               </div>
@@ -667,69 +674,22 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
               Selected Publications
             </h3>
 
-            <div className="space-y-6">
-              {expert.keyPublications.map((pub, i) => (
+            <div className="space-y-4">
+              {expert.topics.map((topic, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, x: -20 }}
                   animate={pubInView ? { opacity: 1, x: 0 } : {}}
                   transition={{ duration: 0.5, delay: 0.2 + i * 0.1, ease }}
-                  className="group border-b border-warm-brown/10 pb-6 last:border-0 last:pb-0 cursor-pointer"
+                  className="group border-b border-warm-brown/10 pb-4 last:border-0 last:pb-0"
                 >
-                  <div className="flex justify-between items-start gap-6">
-                    <div>
-                      <h4 className="text-lg font-medium text-charcoal group-hover:text-warm-brown transition-colors font-serif leading-snug">
-                        {pub.title}
-                      </h4>
-                      <p className="text-sm text-text-muted mt-2 font-light">
-                        {pub.journal} &bull; <span className="italic">{pub.year}</span>
-                      </p>
-                    </div>
-                    <span className="bg-warm-brown/10 text-warm-brown-dark text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-sm whitespace-nowrap shrink-0">
-                      {pub.citations} Citations
-                    </span>
-                  </div>
+                  <h4 className="text-base font-medium text-charcoal group-hover:text-warm-brown transition-colors font-serif leading-snug">
+                    {topic}
+                  </h4>
                 </motion.div>
               ))}
             </div>
           </motion.div>
-
-          {/* ---- AWARDS & RECOGNITION ---- */}
-          {expert.awards && expert.awards.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.7, ease }}
-              className="bg-surface-cream border border-warm-brown/20 p-8 shadow-sm"
-            >
-              <h3 className="text-xl font-serif font-medium text-charcoal mb-6 flex items-center gap-2">
-                <svg className="w-5 h-5 text-warm-brown" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                  <path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                </svg>
-                Awards &amp; Recognition
-              </h3>
-              <div className="space-y-4">
-                {expert.awards.map((award, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, x: -15 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.4, delay: i * 0.1, ease }}
-                    className="flex items-center gap-4 p-4 border border-warm-brown/10 hover:border-warm-brown/30 transition-colors"
-                  >
-                    <div className="w-10 h-10 rounded-sm bg-warm-brown/10 flex items-center justify-center shrink-0">
-                      <svg className="w-5 h-5 text-warm-brown" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                        <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                      </svg>
-                    </div>
-                    <span className="text-sm font-medium text-charcoal">{award}</span>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
         </div>
 
         {/* ============================================================ */}
@@ -754,7 +714,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                   <div>
                     <h3 className="text-white font-serif font-medium text-lg">AI Assistant</h3>
                     <p className="text-white/50 text-xs font-light tracking-wide">
-                      Trained on {expert.publications} papers
+                      Ask about {expert.name.split(" ")[0]}&apos;s research
                     </p>
                   </div>
                 </div>
@@ -770,7 +730,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                     value={aiQuery}
                     onChange={(e) => setAiQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleAiSubmit()}
-                    placeholder={`e.g. Findings on ${expert.expertise[0]}?`}
+                    placeholder={`e.g. What is ${expert.name.split(" ")[0]}'s research focus?`}
                     className="w-full pl-4 pr-12 py-3 bg-white/5 border border-white/10 rounded-lg text-sm text-white focus:ring-1 focus:ring-accent-tan focus:border-accent-tan outline-none transition-all duration-300 placeholder-white/20"
                   />
                   <button
@@ -833,7 +793,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                   </div>
                 </div>
                 <span className="text-xs font-bold text-white bg-charcoal px-3 py-1 rounded-full">
-                  ${expert.sessionTypes.find((s) => s.type === "Premium Message")?.price || 50}
+                  $50
                 </span>
               </button>
 
@@ -901,7 +861,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                     <span className="uppercase tracking-wider text-xs">Schedule Consultation</span>
                   </button>
                   <p className="text-[10px] text-white/40 text-center mt-3 font-light">
-                    Rates start from ${expert.hourlyRate}/hr
+                    Book a consultation session
                   </p>
 
                   {/* Calendar */}
@@ -925,24 +885,8 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
               <h4 className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-6">
                 Similar Experts
               </h4>
-              <div className="space-y-5">
-                {otherExperts.map((other) => (
-                  <Link
-                    key={other.id}
-                    href={`/expert/${other.id}`}
-                    className="flex items-center gap-4 p-3 hover:bg-white rounded-lg cursor-pointer transition-all border border-transparent hover:border-warm-brown/10 hover:shadow-sm group"
-                  >
-                    <img
-                      src={other.avatar}
-                      alt={other.name}
-                      className="w-12 h-12 rounded-lg object-cover grayscale group-hover:grayscale-0 transition-all shadow-sm"
-                    />
-                    <div>
-                      <div className="text-sm font-serif font-medium text-charcoal">{other.name}</div>
-                      <div className="text-xs text-text-muted italic">{other.expertise[0]}</div>
-                    </div>
-                  </Link>
-                ))}
+              <div className="text-sm text-text-muted">
+                <Link href="/discover" className="text-warm-brown hover:underline">Browse all experts →</Link>
               </div>
             </motion.div>
           </div>
