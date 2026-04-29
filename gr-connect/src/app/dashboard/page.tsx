@@ -149,7 +149,7 @@ const activities = [
 /*  Dashboard page                                                    */
 /* ------------------------------------------------------------------ */
 export default function DashboardPage() {
-  const { user, isLoggedIn } = useAuth();
+  const { user, profile, isLoggedIn } = useAuth();
 
   /* ---- Not authenticated gate ---- */
   if (!isLoggedIn || !user) {
@@ -183,13 +183,11 @@ export default function DashboardPage() {
     );
   }
 
-  /* ---- Mock user fields ---- */
-  const fieldsOfStudy = (user as { field?: string }).field
-    ? (user as { field?: string }).field!.split(/[,&-]/).map((s: string) => s.trim()).filter(Boolean)
-    : ["Computer Science", "IoT", "Security"];
+  const fieldsOfStudy = profile?.expertise?.length
+    ? profile.expertise
+    : [];
 
-  const roleBadge =
-    (user as { role?: string }).role === "expert" ? "Expert" : "Seeker";
+  const roleBadge = profile?.role === "expert" ? "Expert" : "Seeker";
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-20">
@@ -213,8 +211,8 @@ export default function DashboardPage() {
             <div className="-mt-12 flex flex-col sm:flex-row sm:items-end gap-5">
               <div className="shrink-0">
                 <img
-                  src={user.avatar}
-                  alt={user.name}
+                  src={profile?.photoURL || user?.photoURL || ""}
+                  alt={profile?.displayName || user?.displayName || "User"}
                   className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-md bg-cream-100"
                 />
               </div>
@@ -222,7 +220,7 @@ export default function DashboardPage() {
               <div className="flex-1 min-w-0 pt-2 sm:pt-0">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                   <h1 className="font-serif text-2xl font-semibold text-charcoal truncate">
-                    {user.name}
+                    {profile?.displayName || user.displayName || "User"}
                   </h1>
                   <span
                     className={`inline-flex items-center self-start px-3 py-0.5 rounded-full text-xs font-semibold tracking-wide ${
@@ -236,12 +234,12 @@ export default function DashboardPage() {
                 </div>
 
                 <p className="text-sm text-text-muted mt-0.5">
-                  {(user as { institution?: string }).institution ?? "University of Pune"}
+                  {profile?.affiliation || ""}
                 </p>
               </div>
 
               <Link
-                href="#"
+                href="/onboarding"
                 className="self-start sm:self-end shrink-0 inline-flex items-center gap-1.5 px-5 py-2 border border-charcoal/20 text-charcoal text-sm font-medium rounded-full hover:bg-charcoal hover:text-white transition-colors duration-200"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -252,10 +250,11 @@ export default function DashboardPage() {
             </div>
 
             {/* Bio */}
-            <p className="mt-4 text-sm text-charcoal/80 leading-relaxed max-w-3xl">
-              {(user as { bio?: string }).bio ??
-                "Masters student researching IoT security protocols and federated learning applications."}
-            </p>
+            {profile?.bio && (
+              <p className="mt-4 text-sm text-charcoal/80 leading-relaxed max-w-3xl">
+                {profile.bio}
+              </p>
+            )}
 
             {/* Field tags */}
             <div className="mt-4 flex flex-wrap gap-2">

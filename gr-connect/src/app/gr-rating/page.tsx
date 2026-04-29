@@ -3,6 +3,8 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/AuthContext";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -571,10 +573,18 @@ function LiveCalculator() {
 /* ================================================================== */
 
 export default function GRRatingPage() {
+  const { isLoggedIn, loading } = useAuth();
+  const router = useRouter();
   const heroRef = useRef(null);
   const formulaRef = useRef(null);
   const tierRef = useRef(null);
   const whyRef = useRef(null);
+
+  useEffect(() => {
+    if (!loading && !isLoggedIn) router.replace("/login");
+  }, [loading, isLoggedIn, router]);
+
+  if (loading || !isLoggedIn) return null;
   const heroInView = useInView(heroRef, { once: true });
   const formulaInView = useInView(formulaRef, { once: true, margin: "-80px" });
   const tierInView = useInView(tierRef, { once: true, margin: "-80px" });

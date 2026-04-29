@@ -5,7 +5,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function Navbar() {
-  const { user, isLoggedIn, logout } = useAuth();
+  const { user, profile, isLoggedIn, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
@@ -73,14 +73,20 @@ export default function Navbar() {
                 className="flex items-center gap-2 group"
               >
                 <div className="w-9 h-9 rounded-full bg-warm-brown/20 border-2 border-warm-brown/40 overflow-hidden group-hover:border-warm-brown transition-colors">
-                  <img
-                    src={user?.avatar}
-                    alt={user?.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {profile?.photoURL || user?.photoURL ? (
+                    <img
+                      src={profile?.photoURL || user?.photoURL || ""}
+                      alt={profile?.displayName || user?.displayName || "User"}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="w-full h-full flex items-center justify-center text-sm font-semibold text-warm-brown">
+                      {(profile?.displayName || user?.displayName || "U").charAt(0).toUpperCase()}
+                    </span>
+                  )}
                 </div>
                 <span className="hidden md:block text-sm font-medium text-charcoal">
-                  {user?.name?.split(" ")[0]}
+                  {(profile?.displayName || user?.displayName || "User").split(" ")[0]}
                 </span>
               </button>
               <AnimatePresence>
@@ -93,7 +99,7 @@ export default function Navbar() {
                     className="absolute right-0 top-12 w-52 bg-white rounded-xl shadow-xl border border-clay-muted/40 overflow-hidden"
                   >
                     <div className="px-4 py-3 border-b border-clay-muted/30">
-                      <p className="text-sm font-medium">{user?.name}</p>
+                      <p className="text-sm font-medium">{profile?.displayName || user?.displayName || "User"}</p>
                       <p className="text-xs text-text-muted">{user?.email}</p>
                     </div>
                     <Link

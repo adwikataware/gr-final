@@ -11,7 +11,10 @@ RUN pip install --no-cache-dir .
 COPY app/ app/
 COPY alembic/ alembic/
 COPY alembic.ini .
+COPY scripts/ scripts/
+COPY startup.sh .
+RUN chmod +x startup.sh
 
 EXPOSE 8080
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4"]
+CMD ["./startup.sh"]
