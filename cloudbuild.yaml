@@ -40,18 +40,16 @@ steps:
     id: deploy-backend
     waitFor: [push-backend]
 
-  # 3b. Set IAM policy for public access
+  # 3b. Set IAM policy for public access (ignore if already set)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
+    entrypoint: bash
     args:
-      - beta
-      - run
-      - services
-      - add-iam-policy-binding
-      - gr-connect-backend
-      - --region=asia-south1
-      - --member=allUsers
-      - --role=roles/run.invoker
+      - -c
+      - |
+        gcloud beta run services add-iam-policy-binding gr-connect-backend \
+          --region=asia-south1 \
+          --member=allUsers \
+          --role=roles/run.invoker || echo "IAM already set, continuing"
     id: iam-backend
     waitFor: [deploy-backend]
 
@@ -97,18 +95,16 @@ steps:
     id: deploy-frontend
     waitFor: [push-frontend]
 
-  # 6b. Set IAM policy for public access on frontend
+  # 6b. Set IAM policy for public access on frontend (ignore if already set)
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
+    entrypoint: bash
     args:
-      - beta
-      - run
-      - services
-      - add-iam-policy-binding
-      - gr-connect-frontend
-      - --region=asia-south1
-      - --member=allUsers
-      - --role=roles/run.invoker
+      - -c
+      - |
+        gcloud beta run services add-iam-policy-binding gr-connect-frontend \
+          --region=asia-south1 \
+          --member=allUsers \
+          --role=roles/run.invoker || echo "IAM already set, continuing"
     id: iam-frontend
     waitFor: [deploy-frontend]
 
