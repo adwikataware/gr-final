@@ -21,7 +21,7 @@ const SDG_LIST = [
 ];
 
 export default function OnboardingPage() {
-  const { profile, updateUserProfile, user } = useAuth();
+  const { profile, updateUserProfile, user, loading } = useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(1);
@@ -37,6 +37,14 @@ export default function OnboardingPage() {
   const [uploading, setUploading] = useState(false);
 
   const isExpert = profile?.role === "expert";
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-cream-bg">
+        <div className="w-8 h-8 border-2 border-warm-brown border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   function toggleExpertise(tag: string) {
     setExpertise((prev) =>
