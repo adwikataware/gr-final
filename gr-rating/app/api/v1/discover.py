@@ -71,6 +71,7 @@ async def discover_researchers(
 
         items.append({
             "id": str(r.id),
+            "firebase_uid": r.google_scholar_id or "",
             "openalex_id": r.openalex_id,
             "name": r.name,
             "affiliation": r.affiliation or "",
@@ -120,6 +121,7 @@ async def get_researcher(
 
     return {
         "id": str(r.id),
+        "firebase_uid": r.google_scholar_id or "",
         "openalex_id": r.openalex_id,
         "name": r.name,
         "affiliation": r.affiliation or "",

@@ -14,6 +14,7 @@ import { db } from "@/lib/firebase";
 /* ------------------------------------------------------------------ */
 interface Expert {
   id: string;
+  firebase_uid: string;
   openalex_id: string;
   name: string;
   affiliation: string;
@@ -126,22 +127,24 @@ export default function DiscoverPage() {
 
   async function handleMessage(expert: Expert) {
     if (!isLoggedIn || !user) { router.push("/login"); return; }
+    if (!expert.firebase_uid) return;
     if (messagingId) return;
     setMessagingId(expert.id);
     try {
+      const expertUid = expert.firebase_uid;
       const q = query(collection(db, "conversations"), where("participants", "array-contains", user.uid));
       const snap = await getDocs(q);
-      const existing = snap.docs.find((d) => (d.data().participants as string[]).includes(expert.id));
+      const existing = snap.docs.find((d) => (d.data().participants as string[]).includes(expertUid));
       if (!existing) {
         await addDoc(collection(db, "conversations"), {
-          participants: [user.uid, expert.id],
+          participants: [user.uid, expertUid],
           participantNames: {
             [user.uid]: profile?.displayName || user.displayName || "You",
-            [expert.id]: expert.name,
+            [expertUid]: expert.name,
           },
           participantPhotos: {
             [user.uid]: profile?.photoURL || user.photoURL || "",
-            [expert.id]: expert.photo_url || "",
+            [expertUid]: expert.photo_url || "",
           },
           lastMessage: "",
           lastMessageAt: serverTimestamp(),
@@ -372,8 +375,9 @@ export default function DiscoverPage() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleMessage(expert)}
-                            disabled={messagingId === expert.id}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full border border-warm-brown text-warm-brown hover:bg-warm-brown hover:text-white transition-colors disabled:opacity-50"
+                            disabled={messagingId === expert.id || !expert.firebase_uid}
+                            title={!expert.firebase_uid ? "This researcher hasn't claimed their profile yet" : undefined}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full border border-warm-brown text-warm-brown hover:bg-warm-brown hover:text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />

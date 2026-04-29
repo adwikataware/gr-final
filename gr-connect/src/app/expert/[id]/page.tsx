@@ -9,6 +9,7 @@ import { sdgData } from "@/data/mockData";
 
 interface ExpertData {
   id: string;
+  firebase_uid: string;
   name: string;
   affiliation: string;
   bio: string;
@@ -298,24 +299,26 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
 
   const handleStartConversation = async () => {
     if (!isLoggedIn || !user) { router.push("/login"); return; }
+    if (!expert.firebase_uid) return;
     if (messageSending) return;
     setMessageSending(true);
+    const expertUid = expert.firebase_uid;
     try {
       const q = query(collection(db, "conversations"), where("participants", "array-contains", user.uid));
       const snap = await getDocs(q);
-      const existing = snap.docs.find((d) => (d.data().participants as string[]).includes(expert.id));
+      const existing = snap.docs.find((d) => (d.data().participants as string[]).includes(expertUid));
       if (existing) { router.push("/messages"); return; }
-      const expertDoc = await getDoc(doc(db, "users", expert.id)).catch(() => null);
+      const expertDoc = await getDoc(doc(db, "users", expertUid)).catch(() => null);
       const expertData = expertDoc?.data();
       await addDoc(collection(db, "conversations"), {
-        participants: [user.uid, expert.id],
+        participants: [user.uid, expertUid],
         participantNames: {
           [user.uid]: profile?.displayName || user.displayName || "You",
-          [expert.id]: expertData?.displayName || expert.name,
+          [expertUid]: expertData?.displayName || expert.name,
         },
         participantPhotos: {
           [user.uid]: profile?.photoURL || user.photoURL || "",
-          [expert.id]: expertData?.photoURL || expert.photo_url || "",
+          [expertUid]: expertData?.photoURL || expert.photo_url || "",
         },
         lastMessage: "",
         lastMessageAt: serverTimestamp(),
@@ -814,10 +817,11 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                       />
                       <button
                         onClick={handleStartConversation}
-                        disabled={messageSending}
-                        className="w-full mt-2 bg-charcoal text-white text-sm font-medium py-2.5 rounded-lg hover:bg-charcoal-light transition-colors disabled:opacity-50"
+                        disabled={messageSending || !expert.firebase_uid}
+                        title={!expert.firebase_uid ? "This researcher hasn't claimed their profile yet" : undefined}
+                        className="w-full mt-2 bg-charcoal text-white text-sm font-medium py-2.5 rounded-lg hover:bg-charcoal-light transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {messageSending ? "Opening chat..." : "Send Message"}
+                        {messageSending ? "Opening chat..." : !expert.firebase_uid ? "Not yet available" : "Send Message"}
                       </button>
                     </div>
                   </motion.div>
