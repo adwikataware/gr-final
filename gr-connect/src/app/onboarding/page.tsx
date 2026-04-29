@@ -27,6 +27,9 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [affiliation, setAffiliation] = useState("");
   const [bio, setBio] = useState("");
+  const [orcid, setOrcid] = useState("");
+  const [orcidStatus, setOrcidStatus] = useState<"idle" | "fetching" | "found" | "notfound">("idle");
+  const [orcidData, setOrcidData] = useState<{ name: string; affiliation: string; topics: string[] } | null>(null);
   const [expertise, setExpertise] = useState<string[]>([]);
   const [sdgs, setSdgs] = useState<number[]>([]);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -52,6 +55,29 @@ export default function OnboardingPage() {
     if (!file) return;
     setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
+  }
+
+  async function handleOrcidFetch() {
+    if (!orcid.trim() || !user) return;
+    setOrcidStatus("fetching");
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiUrl}/api/v1/researchers/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orcid: orcid.trim(), firebase_uid: user.uid }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setOrcidData({ name: data.name, affiliation: data.affiliation, topics: data.topics });
+        if (data.affiliation) setAffiliation(data.affiliation);
+        setOrcidStatus("found");
+      } else {
+        setOrcidStatus("notfound");
+      }
+    } catch {
+      setOrcidStatus("notfound");
+    }
   }
 
   async function handleFinish() {
@@ -135,6 +161,45 @@ export default function OnboardingPage() {
                   <p className="text-xs text-text-muted mt-0.5">JPG or PNG, max 5MB</p>
                 </div>
               </div>
+
+              {/* ORCID field — expert only */}
+              {isExpert && (
+                <div>
+                  <label className="block text-sm font-medium text-charcoal mb-1.5">
+                    ORCID ID <span className="text-text-muted font-normal">(recommended)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={orcid}
+                      onChange={(e) => { setOrcid(e.target.value); setOrcidStatus("idle"); }}
+                      placeholder="e.g. 0000-0002-1825-0097"
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleOrcidFetch}
+                      disabled={!orcid.trim() || orcidStatus === "fetching"}
+                      className="px-4 py-2.5 bg-warm-brown text-white text-sm font-medium rounded-xl hover:bg-warm-brown-dark transition-colors disabled:opacity-50 shrink-0"
+                    >
+                      {orcidStatus === "fetching" ? "..." : "Fetch"}
+                    </button>
+                  </div>
+                  {orcidStatus === "found" && orcidData && (
+                    <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm">
+                      <p className="font-medium text-green-800">✓ Found: {orcidData.name}</p>
+                      <p className="text-green-700 text-xs mt-0.5">{orcidData.affiliation}</p>
+                      {orcidData.topics.length > 0 && (
+                        <p className="text-green-600 text-xs mt-0.5">Topics: {orcidData.topics.slice(0, 3).join(", ")}</p>
+                      )}
+                    </div>
+                  )}
+                  {orcidStatus === "notfound" && (
+                    <p className="mt-2 text-xs text-red-600">ORCID not found on OpenAlex. You can still continue manually.</p>
+                  )}
+                  <p className="text-xs text-text-muted mt-1.5">Your ORCID lets us fetch your real research data from OpenAlex automatically.</p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-charcoal mb-1.5">

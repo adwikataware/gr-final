@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.researchers import router as researchers_router
 from app.api.v1.discover import router as discover_router
+from app.api.v1.claim import router as claim_router
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ app.add_middleware(
 
 app.include_router(researchers_router)
 app.include_router(discover_router)
+app.include_router(claim_router)
 
 
 @app.get("/api/v1/health")
