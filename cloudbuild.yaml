@@ -29,15 +29,31 @@ steps:
       - --image=asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
       - --region=asia-south1
       - --platform=managed
-      - --allow-unauthenticated
+      - --no-allow-unauthenticated
       - --min-instances=1
       - --max-instances=100
       - --memory=2Gi
       - --cpu=2
       - --add-cloudsql-instances=gr-connect-prod:asia-south1:gr-connect-db
       - --set-env-vars=DATABASE_URL=postgresql+asyncpg://gruser:grpass@/gr_rating?host=/cloudsql/gr-connect-prod:asia-south1:gr-connect-db,REDIS_URL=redis://localhost:6379/0,OPENALEX_EMAIL=ayushwalunj1@gmail.com
+      - --timeout=300
     id: deploy-backend
     waitFor: [push-backend]
+
+  # 3b. Set IAM policy for public access
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - beta
+      - run
+      - services
+      - add-iam-policy-binding
+      - gr-connect-backend
+      - --region=asia-south1
+      - --member=allUsers
+      - --role=roles/run.invoker
+    id: iam-backend
+    waitFor: [deploy-backend]
 
   # 4. Build frontend (after backend is done to avoid memory contention)
   - name: 'gcr.io/cloud-builders/docker'
@@ -51,7 +67,7 @@ steps:
       - NEXT_PUBLIC_API_URL=https://api.grconnect.org
       - ./gr-connect
     id: build-frontend
-    waitFor: [deploy-backend]
+    waitFor: [iam-backend]
 
   # 5. Push frontend
   - name: 'gcr.io/cloud-builders/docker'
@@ -72,13 +88,29 @@ steps:
       - --image=asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/frontend:$COMMIT_SHA
       - --region=asia-south1
       - --platform=managed
-      - --allow-unauthenticated
+      - --no-allow-unauthenticated
       - --min-instances=1
       - --max-instances=50
       - --memory=1Gi
       - --cpu=1
+      - --timeout=300
     id: deploy-frontend
     waitFor: [push-frontend]
+
+  # 6b. Set IAM policy for public access on frontend
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - beta
+      - run
+      - services
+      - add-iam-policy-binding
+      - gr-connect-frontend
+      - --region=asia-south1
+      - --member=allUsers
+      - --role=roles/run.invoker
+    id: iam-frontend
+    waitFor: [deploy-frontend]
 
 images:
   - asia-south1-docker.pkg.dev/$PROJECT_ID/gr-connect/backend:$COMMIT_SHA
