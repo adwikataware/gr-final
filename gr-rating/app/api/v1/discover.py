@@ -86,3 +86,50 @@ async def discover_researchers(
         })
 
     return {"researchers": items, "total": len(items), "offset": offset, "limit": limit}
+
+
+@router.get("/{researcher_id}")
+async def get_researcher(
+    researcher_id: str,
+    session: AsyncSession = Depends(get_session),
+):
+    stmt = (
+        select(Researcher, GRRating)
+        .join(GRRating, Researcher.id == GRRating.researcher_id)
+        .where(Researcher.id == researcher_id)
+    )
+    result = (await session.execute(stmt)).first()
+    if not result:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Researcher not found")
+
+    r, gr = result
+    topics_list: list[str] = []
+    if r.topics:
+        try:
+            topics_list = json.loads(r.topics)
+        except Exception:
+            topics_list = [t.strip() for t in r.topics.split(",") if t.strip()]
+
+    sdg_list: list[int] = []
+    if r.sdg_ids:
+        try:
+            sdg_list = [int(x) for x in r.sdg_ids.split(",") if x.strip().isdigit()]
+        except Exception:
+            pass
+
+    return {
+        "id": str(r.id),
+        "openalex_id": r.openalex_id,
+        "name": r.name,
+        "affiliation": r.affiliation or "",
+        "bio": r.bio or "",
+        "photo_url": r.photo_url or "",
+        "topics": topics_list,
+        "sdg_ids": sdg_list,
+        "gr_rating": round(gr.gr_rating, 1),
+        "tier": gr.tier,
+        "tier_label": TIER_LABEL.get(gr.tier, "Verified"),
+        "rank": gr.rank_overall,
+        "orcid": r.orcid or "",
+    }

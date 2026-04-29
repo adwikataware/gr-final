@@ -2,8 +2,12 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { sdgData } from "@/data/mockData";
+import { useAuth } from "@/lib/AuthContext";
+import { collection, addDoc, getDocs, query, where, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -54,6 +58,9 @@ function tierBadgeClass(tierLabel: string) {
 /* Component                                                           */
 /* ------------------------------------------------------------------ */
 export default function DiscoverPage() {
+  const router = useRouter();
+  const { user, profile, isLoggedIn } = useAuth();
+  const [messagingId, setMessagingId] = useState<string | null>(null);
   const [experts, setExperts] = useState<Expert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -115,6 +122,38 @@ export default function DiscoverPage() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  }
+
+  async function handleMessage(expert: Expert) {
+    if (!isLoggedIn || !user) { router.push("/login"); return; }
+    if (messagingId) return;
+    setMessagingId(expert.id);
+    try {
+      const q = query(collection(db, "conversations"), where("participants", "array-contains", user.uid));
+      const snap = await getDocs(q);
+      const existing = snap.docs.find((d) => (d.data().participants as string[]).includes(expert.id));
+      if (!existing) {
+        await addDoc(collection(db, "conversations"), {
+          participants: [user.uid, expert.id],
+          participantNames: {
+            [user.uid]: profile?.displayName || user.displayName || "You",
+            [expert.id]: expert.name,
+          },
+          participantPhotos: {
+            [user.uid]: profile?.photoURL || user.photoURL || "",
+            [expert.id]: expert.photo_url || "",
+          },
+          lastMessage: "",
+          lastMessageAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        });
+      }
+      router.push("/messages");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setMessagingId(null);
+    }
   }
 
   /* ---------------------------------------------------------------- */
@@ -330,15 +369,27 @@ export default function DiscoverPage() {
                             </a>
                           )}
                         </div>
-                        <Link
-                          href={`/expert/${expert.id}`}
-                          className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium rounded-full bg-charcoal text-white hover:bg-charcoal-light transition-colors"
-                        >
-                          View Profile
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                          </svg>
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleMessage(expert)}
+                            disabled={messagingId === expert.id}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-full border border-warm-brown text-warm-brown hover:bg-warm-brown hover:text-white transition-colors disabled:opacity-50"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                            {messagingId === expert.id ? "Opening..." : "Message"}
+                          </button>
+                          <Link
+                            href={`/expert/${expert.id}`}
+                            className="inline-flex items-center gap-1.5 px-5 py-2 text-sm font-medium rounded-full bg-charcoal text-white hover:bg-charcoal-light transition-colors"
+                          >
+                            View Profile
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                          </Link>
+                        </div>
                       </div>
                     </div>
                   </div>
