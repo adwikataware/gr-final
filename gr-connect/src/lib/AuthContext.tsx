@@ -38,6 +38,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   signupWithEmail: (email: string, password: string, name: string, role: "seeker" | "expert") => Promise<void>;
+  signupWithOrcid: (orcid: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
@@ -114,6 +115,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }
 
+  async function signupWithOrcid(orcid: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+      // First fetch researcher data from OpenAlex via our backend
+      const res = await fetch(`${apiUrl}/api/v1/researchers/orcid-lookup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orcid: orcid.trim() }),
+      });
+      if (!res.ok) return { success: false, error: "ORCID not found on OpenAlex. Please check your ORCID ID." };
+      const data = await res.json();
+
+      // Create Firebase account with a derived email
+      const email = `orcid.${orcid.replace(/-/g, "")}@grconnect.app`;
+      const password = `orcid_${orcid}_${Date.now()}`;
+
+      let firebaseUser;
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        firebaseUser = cred.user;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "";
+        if (msg.includes("email-already-in-use")) {
+          // Already registered — sign them in
+          const cred2 = await signInWithEmailAndPassword(auth, email, password);
+          firebaseUser = cred2.user;
+        } else {
+          throw err;
+        }
+      }
+
+      await updateProfile(firebaseUser, {
+        displayName: data.name,
+        photoURL: data.photo_url || null,
+      });
+
+      const newProfile: UserProfile = {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+        displayName: data.name,
+        photoURL: data.photo_url || null,
+        role: "expert",
+        onboardingComplete: true,
+        affiliation: data.affiliation || "",
+        bio: data.bio || "",
+        expertise: data.topics || [],
+      };
+      await setDoc(doc(db, "users", firebaseUser.uid), { ...newProfile, createdAt: serverTimestamp() });
+      setProfile(newProfile);
+
+      // Link Firebase UID to researcher record
+      await fetch(`${apiUrl}/api/v1/researchers/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orcid: orcid.trim(), firebase_uid: firebaseUser.uid }),
+      });
+
+      return { success: true };
+    } catch {
+      return { success: false, error: "Something went wrong. Please try again." };
+    }
+  }
+
   async function updateUserProfile(data: Partial<UserProfile>) {
     if (!user) return;
     await setDoc(doc(db, "users", user.uid), data, { merge: true });
@@ -129,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithGoogle,
       loginWithEmail,
       signupWithEmail,
+      signupWithOrcid,
       logout,
       updateUserProfile,
     }}>

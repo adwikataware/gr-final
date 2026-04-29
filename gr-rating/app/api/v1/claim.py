@@ -42,6 +42,64 @@ class ClaimRequest(BaseModel):
     firebase_uid: str
 
 
+class OrcidLookupRequest(BaseModel):
+    orcid: str
+
+
+@router.post("/orcid-lookup")
+async def orcid_lookup(body: OrcidLookupRequest):
+    """Lookup ORCID on OpenAlex without saving — used during signup flow."""
+    orcid = body.orcid.strip().replace("https://orcid.org/", "").strip("/")
+    if not orcid:
+        raise HTTPException(status_code=400, detail="ORCID is required")
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        resp = await client.get(
+            f"{BASE_URL}/authors",
+            params={"filter": f"orcid:{orcid}", "per-page": 1},
+            headers=HEADERS,
+        )
+        results = resp.json().get("results", []) if resp.status_code == 200 else []
+        if not results:
+            resp2 = await client.get(
+                f"{BASE_URL}/authors",
+                params={"filter": f"orcid:https://orcid.org/{orcid}", "per-page": 1},
+                headers=HEADERS,
+            )
+            results = resp2.json().get("results", []) if resp2.status_code == 200 else []
+
+    if not results:
+        raise HTTPException(status_code=404, detail="No researcher found with this ORCID on OpenAlex")
+
+    author = results[0]
+    display_name = author.get("display_name", "")
+    works_count = author.get("works_count", 0)
+    cited_by_count = author.get("cited_by_count", 0)
+    h_index = author.get("summary_stats", {}).get("h_index", 0)
+    affiliation = ""
+    aff_list = author.get("affiliations", [])
+    if aff_list:
+        affiliation = aff_list[0].get("institution", {}).get("display_name", "")
+    if not affiliation:
+        last = author.get("last_known_institutions", [])
+        if last:
+            affiliation = last[0].get("display_name", "")
+    topics = [t.get("display_name", "") for t in author.get("topics", [])[:6] if t.get("display_name")]
+    bio = f"Researcher with {works_count} publications and {cited_by_count} citations."
+    photo_url = f"https://ui-avatars.com/api/?name={display_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
+
+    return {
+        "name": display_name,
+        "affiliation": affiliation,
+        "bio": bio,
+        "photo_url": photo_url,
+        "topics": topics,
+        "works_count": works_count,
+        "cited_by_count": cited_by_count,
+        "h_index": h_index,
+    }
+
+
 def compute_gr(works_count: int, cited_by_count: int, h_index: int):
     pub_score = min(works_count / 500 * 100, 100)
     cite_score = min(cited_by_count / 20000 * 100, 100)
