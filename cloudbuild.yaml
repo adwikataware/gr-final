@@ -34,6 +34,8 @@ steps:
       - --max-instances=100
       - --memory=2Gi
       - --cpu=2
+      - --add-cloudsql-instances=gr-connect-prod:asia-south1:gr-connect-db
+      - --set-env-vars=DATABASE_URL=postgresql+asyncpg://gruser:grpass@/gr_rating?host=/cloudsql/gr-connect-prod:asia-south1:gr-connect-db,REDIS_URL=redis://localhost:6379/0,OPENALEX_EMAIL=ayushwalunj1@gmail.com
     id: deploy-backend
     waitFor: [push-backend]
 
