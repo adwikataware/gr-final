@@ -5,7 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { sdgData } from "@/data/mockData";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { useAuth } from "@/lib/AuthContext";
+import {
+  collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface ExpertData {
   id: string;
@@ -22,11 +26,6 @@ interface ExpertData {
   rank: number | null;
   orcid: string;
 }
-import { useAuth } from "@/lib/AuthContext";
-import {
-  collection, addDoc, getDocs, query, where, serverTimestamp, doc, getDoc,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
 
 /* ------------------------------------------------------------------ */
 /*  TYPES                                                              */
