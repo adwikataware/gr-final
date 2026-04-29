@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.researchers import router as researchers_router
 from app.api.v1.discover import router as discover_router
 
@@ -21,6 +22,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="GR Rating API", version="0.1.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://gr-connect-frontend-479016713032.asia-south1.run.app"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(researchers_router)
 app.include_router(discover_router)
 
