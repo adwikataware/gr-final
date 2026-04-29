@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { sdgData } from "@/data/mockData";
-// CountUp removed - metrics now come from API
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 interface ExpertData {
   id: string;
@@ -137,24 +137,86 @@ function getSdgDisplayInfo(sdgId: number, isActive: boolean) {
 /*  CALENDAR COMPONENT                                                 */
 /* ------------------------------------------------------------------ */
 
-function CalendarWidget({ onBook }: { onBook: () => void }) {
-  const [selectedDate, setSelectedDate] = useState<number | null>(13);
+interface CalendarWidgetProps {
+  expert: ExpertData;
+  seekerId: string;
+  seekerName: string;
+  seekerPhoto: string;
+}
+
+function CalendarWidget({ expert, seekerId, seekerName, seekerPhoto }: CalendarWidgetProps) {
+  const router = useRouter();
+  const today = new Date();
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const days = Array.from({ length: 28 }, (_, i) => i + 1);
-  const times = ["09:00", "11:00", "14:00", "16:00"];
+  const [note, setNote] = useState("");
+  const [booking, setBooking] = useState(false);
+
+  const displayMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const monthName = displayMonth.toLocaleString("default", { month: "long", year: "numeric" });
+  const firstDow = displayMonth.getDay();
+  const daysInMonth = new Date(displayMonth.getFullYear(), displayMonth.getMonth() + 1, 0).getDate();
+  const times = ["09:00 AM", "11:00 AM", "02:00 PM", "04:00 PM"];
   const dayHeaders = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  const isPast = (day: number) => {
+    if (monthOffset > 0) return false;
+    return day < today.getDate();
+  };
+
+  async function handleConfirm() {
+    if (!selectedDay || !selectedTime || booking) return;
+    setBooking(true);
+
+    const dateStr = new Date(displayMonth.getFullYear(), displayMonth.getMonth(), selectedDay)
+      .toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+
+    // Generate a fake but plausible Google Meet link using a random code
+    const meetCode = Math.random().toString(36).substring(2, 5) + "-" +
+      Math.random().toString(36).substring(2, 7) + "-" +
+      Math.random().toString(36).substring(2, 5);
+    const meetLink = `https://meet.google.com/${meetCode}`;
+
+    try {
+      const docRef = await addDoc(collection(db, "bookings"), {
+        seekerId,
+        expertId: expert.firebase_uid || expert.id,
+        expertName: expert.name,
+        expertPhoto: expert.photo_url || "",
+        seekerName,
+        seekerPhoto,
+        date: dateStr,
+        time: selectedTime,
+        note: note.trim(),
+        meetLink,
+        status: "upcoming",
+        createdAt: serverTimestamp(),
+      });
+      router.push(`/booking/confirm?id=${docRef.id}`);
+    } catch (err) {
+      console.error(err);
+      setBooking(false);
+    }
+  }
 
   return (
     <div className="bg-surface-cream rounded-lg overflow-hidden border border-warm-brown/20 p-6 shadow-inner">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <button className="p-1 hover:bg-warm-brown/10 rounded transition-colors">
+      {/* Month nav */}
+      <div className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => { setMonthOffset((m) => Math.max(0, m - 1)); setSelectedDay(null); }}
+          className="p-1 hover:bg-warm-brown/10 rounded transition-colors"
+        >
           <svg className="w-4 h-4 text-charcoal" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h5 className="font-serif font-medium text-charcoal">March 2026</h5>
-        <button className="p-1 hover:bg-warm-brown/10 rounded transition-colors">
+        <h5 className="font-serif font-medium text-charcoal text-sm">{monthName}</h5>
+        <button
+          onClick={() => { setMonthOffset((m) => m + 1); setSelectedDay(null); }}
+          className="p-1 hover:bg-warm-brown/10 rounded transition-colors"
+        >
           <svg className="w-4 h-4 text-charcoal" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
             <path d="M9 5l7 7-7 7" />
           </svg>
@@ -162,24 +224,24 @@ function CalendarWidget({ onBook }: { onBook: () => void }) {
       </div>
 
       {/* Day headers */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
+      <div className="grid grid-cols-7 gap-1 mb-1">
         {dayHeaders.map((d) => (
-          <div key={d} className="text-[10px] font-medium text-text-muted text-center uppercase">
-            {d}
-          </div>
+          <div key={d} className="text-[10px] font-medium text-text-muted text-center uppercase">{d}</div>
         ))}
       </div>
 
       {/* Dates */}
       <div className="grid grid-cols-7 gap-1 text-center">
-        {days.map((day) => (
+        {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
           <button
             key={day}
-            onClick={() => setSelectedDate(day)}
-            className={`py-2 text-xs rounded cursor-pointer transition-all ${
-              selectedDate === day
-                ? "bg-warm-brown text-white font-medium shadow-sm"
-                : "text-charcoal hover:bg-warm-brown/10"
+            disabled={isPast(day)}
+            onClick={() => setSelectedDay(day)}
+            className={`py-1.5 text-xs rounded transition-all ${
+              isPast(day) ? "text-text-muted/30 cursor-not-allowed" :
+              selectedDay === day ? "bg-warm-brown text-white font-medium shadow-sm" :
+              "text-charcoal hover:bg-warm-brown/10"
             }`}
           >
             {day}
@@ -188,12 +250,12 @@ function CalendarWidget({ onBook }: { onBook: () => void }) {
       </div>
 
       {/* Time slots */}
-      <div className="mt-8 grid grid-cols-2 gap-2">
+      <div className="mt-5 grid grid-cols-2 gap-2">
         {times.map((time) => (
           <button
             key={time}
             onClick={() => setSelectedTime(time)}
-            className={`py-2 px-4 border rounded text-xs transition-all ${
+            className={`py-2 px-3 border rounded text-xs transition-all ${
               selectedTime === time
                 ? "border-warm-brown bg-warm-brown/10 text-charcoal font-medium"
                 : "border-warm-brown/20 text-charcoal hover:bg-warm-brown/5"
@@ -204,12 +266,22 @@ function CalendarWidget({ onBook }: { onBook: () => void }) {
         ))}
       </div>
 
+      {/* Note */}
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Add a note (optional)..."
+        rows={2}
+        className="w-full mt-4 p-3 text-xs border border-warm-brown/20 rounded bg-white/60 text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown resize-none"
+      />
+
       {/* Confirm */}
       <button
-        onClick={onBook}
-        className="w-full mt-6 bg-warm-brown hover:bg-warm-brown-dark text-white font-serif font-medium py-3 rounded transition-all shadow-md hover:shadow-lg"
+        onClick={handleConfirm}
+        disabled={!selectedDay || !selectedTime || booking}
+        className="w-full mt-4 bg-warm-brown hover:bg-warm-brown-dark text-white font-serif font-medium py-3 rounded transition-all shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        Confirm Booking
+        {booking ? "Booking..." : "Confirm Booking"}
       </button>
     </div>
   );
@@ -856,7 +928,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
 
                 <div className="pt-4 border-t border-white/10">
                   <button
-                    onClick={() => router.push("/booking")}
+                    onClick={() => isLoggedIn ? null : router.push("/login")}
                     className="w-full bg-accent-tan hover:bg-warm-brown-light text-charcoal font-bold py-4 px-4 rounded-lg shadow-lg hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-2"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -870,7 +942,21 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
 
                   {/* Calendar */}
                   <div className="mt-6 pt-6 border-t border-white/10">
-                    <CalendarWidget onBook={() => router.push("/booking")} />
+                    {isLoggedIn && user ? (
+                      <CalendarWidget
+                        expert={expert}
+                        seekerId={user.uid}
+                        seekerName={profile?.displayName || user.displayName || "Anonymous"}
+                        seekerPhoto={profile?.photoURL || user.photoURL || ""}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => router.push("/login")}
+                        className="w-full bg-warm-brown hover:bg-warm-brown-dark text-white font-serif font-medium py-3 rounded transition-all shadow-md"
+                      >
+                        Log in to Book
+                      </button>
+                    )}
                   </div>
                   <p className="text-[10px] text-white/30 text-center mt-4 italic">
                     Select a date and time to confirm your booking

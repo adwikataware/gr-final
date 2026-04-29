@@ -56,6 +56,14 @@ export default function Navbar() {
           )}
           {isLoggedIn && (
             <Link
+              href="/my-bookings"
+              className="text-sm text-charcoal/70 hover:text-charcoal transition-colors"
+            >
+              Bookings
+            </Link>
+          )}
+          {isLoggedIn && (
+            <Link
               href="/dashboard"
               className="text-sm text-charcoal/70 hover:text-charcoal transition-colors"
             >
@@ -115,6 +123,13 @@ export default function Navbar() {
                       onClick={() => setMenuOpen(false)}
                     >
                       Messages
+                    </Link>
+                    <Link
+                      href="/my-bookings"
+                      className="block px-4 py-2.5 text-sm hover:bg-cream-100 transition-colors"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      My Bookings
                     </Link>
                     <button
                       onClick={() => {
