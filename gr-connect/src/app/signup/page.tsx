@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/AuthContext";
 
 type Role = "seeker" | "expert";
 
-export default function SignupPage() {
+function SignupForm() {
   const searchParams = useSearchParams();
   const initialRole: Role = searchParams.get("role") === "expert" ? "expert" : "seeker";
   const [name, setName] = useState("");
@@ -173,5 +173,13 @@ export default function SignupPage() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
   );
 }
