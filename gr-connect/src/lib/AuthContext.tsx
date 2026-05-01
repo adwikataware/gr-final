@@ -38,7 +38,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   signupWithEmail: (email: string, password: string, name: string, role: "seeker" | "expert") => Promise<void>;
-  signupWithOrcid: (orcid: string) => Promise<{ success: boolean; error?: string }>;
+  signupWithOrcid: (orcid: string, role?: "seeker" | "expert") => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
@@ -115,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }
 
-  async function signupWithOrcid(orcid: string): Promise<{ success: boolean; error?: string }> {
+  async function signupWithOrcid(orcid: string, role: "seeker" | "expert" = "expert"): Promise<{ success: boolean; error?: string }> {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: firebaseUser.email,
         displayName: data.name,
         photoURL: data.photo_url || null,
-        role: "expert",
+        role,
         onboardingComplete: true,
         affiliation: data.affiliation || "",
         bio: data.bio || "",
