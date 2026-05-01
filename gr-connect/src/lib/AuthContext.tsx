@@ -183,7 +183,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function updateUserProfile(data: Partial<UserProfile>) {
     if (!user) return;
     await setDoc(doc(db, "users", user.uid), data, { merge: true });
+    const merged = profile ? { ...profile, ...data } : data;
     setProfile((prev) => prev ? { ...prev, ...data } : null);
+
+    // Sync Google experts to backend so they appear on discover page
+    const isExpert = (data.role ?? profile?.role) === "expert";
+    const completing = data.onboardingComplete === true;
+    if (isExpert && completing) {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        await fetch(`${apiUrl}/api/v1/researchers/sync-google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firebase_uid: user.uid,
+            name: merged.displayName || user.displayName || "Unknown",
+            email: merged.email || user.email || "",
+            affiliation: merged.affiliation || "",
+            bio: merged.bio || "",
+            topics: merged.expertise || [],
+            photo_url: merged.photoURL || user.photoURL || "",
+          }),
+        });
+      } catch {
+        // Non-critical — profile saved to Firestore, backend sync failed silently
+      }
+    }
   }
 
   return (
