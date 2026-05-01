@@ -46,6 +46,61 @@ class OrcidLookupRequest(BaseModel):
     orcid: str
 
 
+class SyncGoogleRequest(BaseModel):
+    firebase_uid: str
+    name: str
+    email: str = ""
+    affiliation: str = ""
+    bio: str = ""
+    topics: list[str] = []
+    photo_url: str = ""
+
+
+@router.post("/sync-google")
+async def sync_google_expert(body: SyncGoogleRequest, session: AsyncSession = Depends(get_session)):
+    """Upsert a Google-login expert into the researcher DB so they appear on discover."""
+    existing = (await session.execute(
+        select(Researcher).where(Researcher.google_scholar_id == body.firebase_uid)
+    )).scalar_one_or_none()
+
+    if existing:
+        r = existing
+    else:
+        r = Researcher(id=uuid.uuid4(), openalex_id=f"google_{body.firebase_uid}")
+        session.add(r)
+
+    r.name = body.name
+    r.affiliation = body.affiliation
+    r.bio = body.bio or f"{body.name} — researcher on GR Connect."
+    r.photo_url = body.photo_url or f"https://ui-avatars.com/api/?name={body.name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
+    r.topics = json.dumps(body.topics) if body.topics else json.dumps([])
+    r.sdg_ids = ""
+    r.google_scholar_id = body.firebase_uid
+
+    await session.flush()
+
+    # Give them a base GR rating if none exists
+    gr_row = (await session.execute(
+        select(GRRating).where(GRRating.researcher_id == r.id)
+    )).scalar_one_or_none()
+
+    if not gr_row:
+        gr_row = GRRating(
+            researcher_id=r.id,
+            gr_rating=10.0,
+            tier="GR-E",
+            p1_score=10.0,
+            p2_score=10.0,
+            p3_score=10.0,
+            p4_score=50.0,
+            p5_score=50.0,
+        )
+        session.add(gr_row)
+
+    await session.commit()
+    return {"id": str(r.id), "firebase_uid": body.firebase_uid}
+
+
 @router.post("/orcid-lookup")
 async def orcid_lookup(body: OrcidLookupRequest):
     """Lookup ORCID on OpenAlex without saving — used during signup flow."""
