@@ -128,9 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!res.ok) return { success: false, error: "ORCID not found on OpenAlex. Please check your ORCID ID." };
       const data = await res.json();
 
-      // Create Firebase account with a derived email
+      // Create Firebase account with a derived email and deterministic password
       const email = `orcid.${orcid.replace(/-/g, "")}@grconnect.app`;
-      const password = `orcid_${orcid}_${Date.now()}`;
+      // Password is deterministic so returning users can sign in without storing it
+      const password = `orcid_${orcid.replace(/-/g, "")}_grconnect`;
 
       let firebaseUser;
       try {
@@ -139,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "";
         if (msg.includes("email-already-in-use")) {
-          // Already registered — sign them in
+          // Already registered — sign them in with same deterministic password
           const cred2 = await signInWithEmailAndPassword(auth, email, password);
           firebaseUser = cred2.user;
         } else {

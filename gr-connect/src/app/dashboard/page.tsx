@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
-import { useRouter } from "next/navigation";
 import {
   collection, query, where, orderBy, limit,
-  onSnapshot, getDocs,
+  onSnapshot, getDocs, doc, getDoc, setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -23,7 +22,7 @@ interface Booking {
   date: string;
   time: string;
   meetLink: string;
-  status: "upcoming" | "completed" | "cancelled";
+  status: "pending" | "confirmed" | "upcoming" | "completed" | "cancelled";
   seekerId: string;
   expertId: string;
 }
@@ -88,34 +87,128 @@ function StatCard({ icon, label, value }: { icon: React.ReactNode; label: string
 }
 
 /* ------------------------------------------------------------------ */
+/*  Availability Settings (Expert only)                               */
+/* ------------------------------------------------------------------ */
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const TIMES = ["09:00 AM", "10:00 AM", "11:00 AM", "12:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM"];
+
+interface AvailabilitySlot { dow: number; time: string; }
+
+function AvailabilitySettings({ uid }: { uid: string }) {
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getDoc(doc(db, "availability", uid))
+      .then((snap) => { if (snap.exists()) setSlots(snap.data().slots || []); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [uid]);
+
+  function toggle(dow: number, time: string) {
+    setSlots((prev) => {
+      const exists = prev.some((s) => s.dow === dow && s.time === time);
+      return exists ? prev.filter((s) => !(s.dow === dow && s.time === time)) : [...prev, { dow, time }];
+    });
+    setSaved(false);
+  }
+
+  async function save() {
+    setSaving(true);
+    try {
+      await setDoc(doc(db, "availability", uid), { slots, updatedAt: new Date().toISOString() });
+      setSaved(true);
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
+  }
+
+  if (loading) return <div className="h-8 flex items-center"><div className="w-4 h-4 border-2 border-warm-brown/30 border-t-warm-brown rounded-full animate-spin" /></div>;
+
+  return (
+    <div>
+      <div className="overflow-x-auto">
+        <table className="text-xs w-full">
+          <thead>
+            <tr>
+              <th className="text-left py-1.5 text-text-muted font-medium pr-3 w-16">Time</th>
+              {DAYS.map((d, i) => (
+                <th key={i} className="text-center py-1.5 text-text-muted font-medium px-1">{d}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {TIMES.map((time) => (
+              <tr key={time}>
+                <td className="text-text-muted pr-3 py-1 whitespace-nowrap">{time}</td>
+                {DAYS.map((_, dow) => {
+                  const active = slots.some((s) => s.dow === dow && s.time === time);
+                  return (
+                    <td key={dow} className="text-center py-1 px-1">
+                      <button
+                        onClick={() => toggle(dow, time)}
+                        className={`w-7 h-7 rounded-md transition-colors ${active ? "bg-warm-brown text-white" : "bg-clay-muted/20 text-text-muted hover:bg-warm-brown/20"}`}
+                      >
+                        {active ? "✓" : ""}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center gap-3 mt-4">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="px-5 py-2 bg-warm-brown text-white text-sm font-medium rounded-full hover:bg-warm-brown-dark transition-colors disabled:opacity-50"
+        >
+          {saving ? "Saving..." : "Save Availability"}
+        </button>
+        {saved && <span className="text-xs text-green-600 font-medium">Saved!</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Dashboard                                                          */
 /* ------------------------------------------------------------------ */
 export default function DashboardPage() {
   const { user, profile, isLoggedIn } = useAuth();
-  const router = useRouter();
 
   const [upcomingBookings, setUpcomingBookings] = useState<Booking[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
   const [stats, setStats] = useState({ sessions: 0, messages: 0, experts: 0 });
   const [recommendedExperts, setRecommendedExperts] = useState<Expert[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
 
+  const isExpert = profile?.role === "expert";
+
   useEffect(() => {
     if (!user) return;
 
-    const field = profile?.role === "expert" ? "expertId" : "seekerId";
+    const field = isExpert ? "expertId" : "seekerId";
+
     const q = query(
       collection(db, "bookings"),
       where(field, "==", user.uid),
-      where("status", "==", "upcoming"),
+      where("status", "in", ["pending", "confirmed", "upcoming"]),
       orderBy("createdAt", "desc"),
       limit(3),
     );
     const unsub = onSnapshot(q, (snap) => {
-      setUpcomingBookings(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking)));
+      const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
+      setUpcomingBookings(all.filter((b) => b.status !== "pending").slice(0, 3));
+      setPendingCount(all.filter((b) => b.status === "pending").length);
       setLoadingBookings(false);
     }, () => setLoadingBookings(false));
     return unsub;
-  }, [user, profile?.role]);
+  }, [user, isExpert]);
 
   useEffect(() => {
     if (!user) return;
@@ -243,10 +336,33 @@ export default function DashboardPage() {
         } />
       </motion.section>
 
-      {/* 3. UPCOMING SESSIONS */}
+      {/* 3a. EXPERT — Availability Settings */}
+      {isExpert && user && (
+        <motion.section initial={{ opacity: 0, y: 32 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="font-serif text-xl font-semibold text-charcoal">My Availability</h2>
+              <p className="text-xs text-text-muted mt-0.5">Set the days and times you&apos;re open for consultations</p>
+            </div>
+            {pendingCount > 0 && (
+              <Link href="/my-bookings" className="flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-700 text-sm font-medium rounded-full hover:bg-amber-200 transition-colors">
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">{pendingCount}</span>
+                Pending requests
+              </Link>
+            )}
+          </div>
+          <div className="bg-white border border-cream-200 rounded-xl p-6">
+            <AvailabilitySettings uid={user.uid} />
+          </div>
+        </motion.section>
+      )}
+
+      {/* 3b. UPCOMING SESSIONS */}
       <motion.section initial={{ opacity: 0, y: 32 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="mb-10">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-serif text-xl font-semibold text-charcoal">Upcoming Sessions</h2>
+          <h2 className="font-serif text-xl font-semibold text-charcoal">
+            {isExpert ? "Confirmed Sessions" : "Upcoming Sessions"}
+          </h2>
           <Link href="/my-bookings" className="text-sm font-medium text-warm-brown hover:underline">View all →</Link>
         </div>
 
@@ -264,8 +380,8 @@ export default function DashboardPage() {
 
         {!loadingBookings && upcomingBookings.length === 0 && (
           <div className="bg-white border border-cream-200 rounded-xl p-8 text-center">
-            <p className="text-text-muted text-sm">No upcoming sessions.</p>
-            {profile?.role !== "expert" && (
+            <p className="text-text-muted text-sm">No confirmed sessions yet.</p>
+            {!isExpert && (
               <Link href="/discover" className="mt-3 inline-block text-sm font-medium text-warm-brown hover:underline">
                 Find an expert to book →
               </Link>
@@ -275,7 +391,6 @@ export default function DashboardPage() {
 
         <div className="space-y-4">
           {upcomingBookings.map((booking) => {
-            const isExpert = profile?.role === "expert";
             const otherName = isExpert ? booking.seekerName : booking.expertName;
             const otherPhoto = isExpert ? booking.seekerPhoto : booking.expertPhoto;
             return (
@@ -299,10 +414,12 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3 sm:self-center">
-                    <a href={booking.meetLink} target="_blank" rel="noopener noreferrer"
-                      className="px-5 py-2.5 bg-warm-brown text-white text-sm font-semibold rounded-full hover:bg-warm-brown-dark transition-colors">
-                      Join Call
-                    </a>
+                    {booking.meetLink && (
+                      <a href={booking.meetLink} target="_blank" rel="noopener noreferrer"
+                        className="px-5 py-2.5 bg-warm-brown text-white text-sm font-semibold rounded-full hover:bg-warm-brown-dark transition-colors">
+                        Join Call
+                      </a>
+                    )}
                     <Link href="/my-bookings" className="text-sm font-medium text-text-muted hover:text-charcoal transition-colors">
                       Details
                     </Link>

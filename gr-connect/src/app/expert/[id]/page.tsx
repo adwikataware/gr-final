@@ -136,6 +136,11 @@ function getSdgDisplayInfo(sdgId: number, isActive: boolean) {
 /*  CALENDAR COMPONENT                                                 */
 /* ------------------------------------------------------------------ */
 
+interface AvailabilitySlot {
+  dow: number; // 0=Sun … 6=Sat
+  time: string; // e.g. "09:00 AM"
+}
+
 interface CalendarWidgetProps {
   expert: ExpertData;
   seekerId: string;
@@ -151,18 +156,45 @@ function CalendarWidget({ expert, seekerId, seekerName, seekerPhoto }: CalendarW
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [booking, setBooking] = useState(false);
+  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+  const [loadingAvail, setLoadingAvail] = useState(true);
+
+  const expertUid = expert.firebase_uid || expert.id;
+
+  useEffect(() => {
+    if (!expertUid) { setLoadingAvail(false); return; }
+    getDoc(doc(db, "availability", expertUid))
+      .then((snap) => {
+        if (snap.exists()) setAvailability(snap.data().slots || []);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingAvail(false));
+  }, [expertUid]);
 
   const displayMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
   const monthName = displayMonth.toLocaleString("default", { month: "long", year: "numeric" });
   const firstDow = displayMonth.getDay();
   const daysInMonth = new Date(displayMonth.getFullYear(), displayMonth.getMonth() + 1, 0).getDate();
-  const times = ["09:00 AM", "11:00 AM", "02:00 PM", "04:00 PM"];
   const dayHeaders = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
   const isPast = (day: number) => {
     if (monthOffset > 0) return false;
+    if (monthOffset < 0) return true;
     return day < today.getDate();
   };
+
+  const getDayOfWeek = (day: number) =>
+    new Date(displayMonth.getFullYear(), displayMonth.getMonth(), day).getDay();
+
+  const timesForDay = (day: number): string[] => {
+    if (availability.length === 0) return [];
+    const dow = getDayOfWeek(day);
+    return availability.filter((s) => s.dow === dow).map((s) => s.time);
+  };
+
+  const isAvailable = (day: number) => !isPast(day) && timesForDay(day).length > 0;
+
+  const timeSlotsForSelected = selectedDay ? timesForDay(selectedDay) : [];
 
   async function handleConfirm() {
     if (!selectedDay || !selectedTime || booking) return;
@@ -171,16 +203,10 @@ function CalendarWidget({ expert, seekerId, seekerName, seekerPhoto }: CalendarW
     const dateStr = new Date(displayMonth.getFullYear(), displayMonth.getMonth(), selectedDay)
       .toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 
-    // Generate a fake but plausible Google Meet link using a random code
-    const meetCode = Math.random().toString(36).substring(2, 5) + "-" +
-      Math.random().toString(36).substring(2, 7) + "-" +
-      Math.random().toString(36).substring(2, 5);
-    const meetLink = `https://meet.google.com/${meetCode}`;
-
     try {
       const docRef = await addDoc(collection(db, "bookings"), {
         seekerId,
-        expertId: expert.firebase_uid || expert.id,
+        expertId: expertUid,
         expertName: expert.name,
         expertPhoto: expert.photo_url || "",
         seekerName,
@@ -188,8 +214,8 @@ function CalendarWidget({ expert, seekerId, seekerName, seekerPhoto }: CalendarW
         date: dateStr,
         time: selectedTime,
         note: note.trim(),
-        meetLink,
-        status: "upcoming",
+        meetLink: "",
+        status: "pending",
         createdAt: serverTimestamp(),
       });
       router.push(`/booking/confirm?id=${docRef.id}`);
@@ -199,12 +225,28 @@ function CalendarWidget({ expert, seekerId, seekerName, seekerPhoto }: CalendarW
     }
   }
 
+  if (loadingAvail) {
+    return (
+      <div className="flex justify-center py-6">
+        <div className="w-5 h-5 border-2 border-warm-brown/40 border-t-warm-brown rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (availability.length === 0) {
+    return (
+      <div className="bg-surface-cream rounded-lg p-4 border border-warm-brown/20 text-center">
+        <p className="text-xs text-text-muted/70 italic">This expert hasn&apos;t set their availability yet.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-surface-cream rounded-lg overflow-hidden border border-warm-brown/20 p-6 shadow-inner">
       {/* Month nav */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => { setMonthOffset((m) => Math.max(0, m - 1)); setSelectedDay(null); }}
+          onClick={() => { setMonthOffset((m) => Math.max(0, m - 1)); setSelectedDay(null); setSelectedTime(null); }}
           className="p-1 hover:bg-warm-brown/10 rounded transition-colors"
         >
           <svg className="w-4 h-4 text-charcoal" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -213,7 +255,7 @@ function CalendarWidget({ expert, seekerId, seekerName, seekerPhoto }: CalendarW
         </button>
         <h5 className="font-serif font-medium text-charcoal text-sm">{monthName}</h5>
         <button
-          onClick={() => { setMonthOffset((m) => m + 1); setSelectedDay(null); }}
+          onClick={() => { setMonthOffset((m) => m + 1); setSelectedDay(null); setSelectedTime(null); }}
           className="p-1 hover:bg-warm-brown/10 rounded transition-colors"
         >
           <svg className="w-4 h-4 text-charcoal" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -232,56 +274,71 @@ function CalendarWidget({ expert, seekerId, seekerName, seekerPhoto }: CalendarW
       {/* Dates */}
       <div className="grid grid-cols-7 gap-1 text-center">
         {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
-        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => (
-          <button
-            key={day}
-            disabled={isPast(day)}
-            onClick={() => setSelectedDay(day)}
-            className={`py-1.5 text-xs rounded transition-all ${
-              isPast(day) ? "text-text-muted/30 cursor-not-allowed" :
-              selectedDay === day ? "bg-warm-brown text-white font-medium shadow-sm" :
-              "text-charcoal hover:bg-warm-brown/10"
-            }`}
-          >
-            {day}
-          </button>
-        ))}
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+          const avail = isAvailable(day);
+          const past = isPast(day);
+          const selected = selectedDay === day;
+          return (
+            <button
+              key={day}
+              disabled={past || !avail}
+              onClick={() => { setSelectedDay(day); setSelectedTime(null); }}
+              className={`py-1.5 text-xs rounded transition-all relative ${
+                past ? "text-text-muted/30 cursor-not-allowed" :
+                !avail ? "text-text-muted/40 cursor-not-allowed" :
+                selected ? "bg-warm-brown text-white font-medium shadow-sm" :
+                "text-charcoal hover:bg-warm-brown/10 font-medium"
+              }`}
+            >
+              {day}
+              {avail && !selected && (
+                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-warm-brown/60" />
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Time slots */}
-      <div className="mt-5 grid grid-cols-2 gap-2">
-        {times.map((time) => (
-          <button
-            key={time}
-            onClick={() => setSelectedTime(time)}
-            className={`py-2 px-3 border rounded text-xs transition-all ${
-              selectedTime === time
-                ? "border-warm-brown bg-warm-brown/10 text-charcoal font-medium"
-                : "border-warm-brown/20 text-charcoal hover:bg-warm-brown/5"
-            }`}
-          >
-            {time}
-          </button>
-        ))}
-      </div>
+      {/* Time slots for selected day */}
+      {selectedDay && (
+        <div className="mt-5">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mb-2">Available times</p>
+          <div className="grid grid-cols-2 gap-2">
+            {timeSlotsForSelected.map((time) => (
+              <button
+                key={time}
+                onClick={() => setSelectedTime(time)}
+                className={`py-2 px-3 border rounded text-xs transition-all ${
+                  selectedTime === time
+                    ? "border-warm-brown bg-warm-brown/10 text-charcoal font-medium"
+                    : "border-warm-brown/20 text-charcoal hover:bg-warm-brown/5"
+                }`}
+              >
+                {time}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Note */}
       <textarea
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="Add a note (optional)..."
+        placeholder="Add a note about your query (optional)..."
         rows={2}
         className="w-full mt-4 p-3 text-xs border border-warm-brown/20 rounded bg-white/60 text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown resize-none"
       />
 
-      {/* Confirm */}
+      {/* Request booking */}
       <button
         onClick={handleConfirm}
         disabled={!selectedDay || !selectedTime || booking}
         className="w-full mt-4 bg-warm-brown hover:bg-warm-brown-dark text-white font-serif font-medium py-3 rounded transition-all shadow-md hover:shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
       >
-        {booking ? "Booking..." : "Confirm Booking"}
+        {booking ? "Sending request..." : "Request Booking"}
       </button>
+      <p className="text-[10px] text-white/40 text-center mt-2">Expert will confirm your request</p>
     </div>
   );
 }

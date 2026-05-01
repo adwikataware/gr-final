@@ -14,6 +14,7 @@ interface BookingData {
   time: string;
   note: string;
   meetLink: string;
+  status: "pending" | "confirmed" | "upcoming" | "completed" | "cancelled";
   createdAt: { seconds: number };
 }
 
@@ -106,6 +107,9 @@ function BookingConfirmContent() {
     },
   ];
 
+  const isPending = !booking.status || booking.status === "pending";
+  const isConfirmed = booking.status === "confirmed" || booking.status === "upcoming";
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-cream-bg flex items-center justify-center py-12 px-4">
       <motion.div
@@ -114,18 +118,29 @@ function BookingConfirmContent() {
         initial="hidden"
         animate="visible"
       >
-        {/* Success icon */}
+        {/* Status icon */}
         <motion.div variants={bounceIn} className="flex justify-center mb-6">
-          <div className="w-20 h-20 rounded-full bg-warm-brown flex items-center justify-center shadow-lg shadow-warm-brown/20">
-            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg ${isPending ? "bg-amber-500 shadow-amber-200" : "bg-warm-brown shadow-warm-brown/20"}`}>
+            {isPending ? (
+              <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+              </svg>
+            ) : (
+              <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
           </div>
         </motion.div>
 
-        <motion.h1 variants={itemVariants} className="font-serif text-3xl md:text-4xl font-semibold text-charcoal text-center mb-8">
-          Session Confirmed!
+        <motion.h1 variants={itemVariants} className="font-serif text-3xl md:text-4xl font-semibold text-charcoal text-center mb-2">
+          {isPending ? "Request Sent!" : "Session Confirmed!"}
         </motion.h1>
+        {isPending && (
+          <motion.p variants={itemVariants} className="text-center text-sm text-text-muted mb-6">
+            Waiting for the expert to confirm your booking request.
+          </motion.p>
+        )}
 
         {/* Confirmation card */}
         <motion.div variants={itemVariants} className="bg-white border border-clay-muted/40 rounded-xl overflow-hidden shadow-sm">
@@ -155,22 +170,29 @@ function BookingConfirmContent() {
             ))}
           </div>
 
-          {/* Meet link */}
-          <div className="p-6 border-t border-clay-muted/30 bg-green-50">
-            <p className="text-xs font-semibold uppercase tracking-wider text-green-700 mb-2">Google Meet Link</p>
-            <a
-              href={booking.meetLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-medium text-green-800 hover:text-green-900 break-all"
-            >
-              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path d="M15 7h3a5 5 0 0 1 0 10h-3m-6 0H6a5 5 0 0 1 0-10h3" /><line x1="8" y1="12" x2="16" y2="12" />
-              </svg>
-              {booking.meetLink}
-            </a>
-            <p className="text-xs text-green-600 mt-1.5">Share this link with both participants before the session.</p>
-          </div>
+          {/* Meet link — only shown after confirmation */}
+          {isConfirmed && booking.meetLink ? (
+            <div className="p-6 border-t border-clay-muted/30 bg-green-50">
+              <p className="text-xs font-semibold uppercase tracking-wider text-green-700 mb-2">Google Meet Link</p>
+              <a
+                href={booking.meetLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-medium text-green-800 hover:text-green-900 break-all"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path d="M15 7h3a5 5 0 0 1 0 10h-3m-6 0H6a5 5 0 0 1 0-10h3" /><line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+                {booking.meetLink}
+              </a>
+              <p className="text-xs text-green-600 mt-1.5">Share this link with both participants before the session.</p>
+            </div>
+          ) : isPending ? (
+            <div className="p-6 border-t border-clay-muted/30 bg-amber-50">
+              <p className="text-xs font-semibold uppercase tracking-wider text-amber-700 mb-1">Awaiting Confirmation</p>
+              <p className="text-xs text-amber-600">The Google Meet link will be shared once the expert accepts your request.</p>
+            </div>
+          ) : null}
 
           {/* Note */}
           {booking.note && (
@@ -183,22 +205,24 @@ function BookingConfirmContent() {
 
         {/* Actions */}
         <motion.div variants={itemVariants} className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-8">
-          <a
-            href={booking.meetLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full sm:w-auto px-6 py-3 text-sm font-semibold text-white bg-warm-brown rounded-xl hover:bg-warm-brown-dark transition-colors flex items-center justify-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
-            </svg>
-            Join Meet
-          </a>
+          {isConfirmed && booking.meetLink && (
+            <a
+              href={booking.meetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-6 py-3 text-sm font-semibold text-white bg-warm-brown rounded-xl hover:bg-warm-brown-dark transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
+              </svg>
+              Join Meet
+            </a>
+          )}
           <Link
             href="/my-bookings"
             className="w-full sm:w-auto px-6 py-3 text-sm font-semibold text-charcoal border border-clay-muted/50 rounded-xl hover:bg-cream-100 transition-colors flex items-center justify-center gap-2"
           >
-            View My Bookings
+            {isPending ? "View Pending Request" : "View My Bookings"}
           </Link>
           <Link
             href="/messages"
