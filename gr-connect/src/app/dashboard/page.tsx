@@ -1,14 +1,15 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 import {
   collection, query, where, orderBy, limit,
-  onSnapshot, getDocs, doc, getDoc, setDoc,
+  onSnapshot, getDocs, doc, getDoc, setDoc, updateDoc,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, storage } from "@/lib/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -34,6 +35,143 @@ interface Expert {
   topics: string[];
   gr_rating: number;
   tier_label: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Profile Header with banner + avatar upload                        */
+/* ------------------------------------------------------------------ */
+function ProfileHeader({ user, profile, roleBadge }: { user: { uid: string; displayName?: string | null; photoURL?: string | null }; profile: Record<string, string[]> | null; roleBadge: string }) {
+  const bannerInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [bannerUrl, setBannerUrl] = useState<string>("");
+  const [avatarUrl, setAvatarUrl] = useState<string>("");
+  const [uploading, setUploading] = useState<"banner" | "avatar" | null>(null);
+
+  // Load saved banner/avatar from Firestore
+  useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, "users", user.uid)).then((snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.bannerUrl) setBannerUrl(data.bannerUrl);
+        if (data.photoURL) setAvatarUrl(data.photoURL);
+        else if (user.photoURL) setAvatarUrl(user.photoURL);
+      } else if (user.photoURL) {
+        setAvatarUrl(user.photoURL);
+      }
+    }).catch(() => {
+      if (user.photoURL) setAvatarUrl(user.photoURL);
+    });
+  }, [user?.uid, user?.photoURL]);
+
+  const handleUpload = useCallback(async (file: File, type: "banner" | "avatar") => {
+    if (!user?.uid) return;
+    setUploading(type);
+
+    // Instant local preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (type === "banner") setBannerUrl(e.target?.result as string);
+      else setAvatarUrl(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `user-uploads/${user.uid}/${type}.${ext}`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, file, { contentType: file.type });
+      const url = await getDownloadURL(fileRef);
+
+      const field = type === "banner" ? "bannerUrl" : "photoURL";
+      await updateDoc(doc(db, "users", user.uid), { [field]: url }).catch(async () => {
+        await setDoc(doc(db, "users", user.uid), { [field]: url }, { merge: true });
+      });
+      if (type === "banner") setBannerUrl(url);
+      else setAvatarUrl(url);
+    } catch (err) {
+      console.error("Upload failed", err);
+    } finally {
+      setUploading(null);
+    }
+  }, [user?.uid]);
+
+  const displayName = (profile as { displayName?: string } | null)?.displayName || user?.displayName || "User";
+  const affiliation = (profile as { affiliation?: string } | null)?.affiliation || "";
+  const bio = (profile as { bio?: string } | null)?.bio || "";
+  const expertise: string[] = (profile as { expertise?: string[] } | null)?.expertise || [];
+
+  return (
+    <div className="relative rounded-2xl overflow-hidden border border-warm-brown/15 shadow-sm bg-surface-cream mb-10">
+      {/* Banner */}
+      <div className="relative h-36 sm:h-44 group cursor-pointer"
+        style={{ background: bannerUrl ? `url(${bannerUrl}) center/cover no-repeat` : "linear-gradient(135deg, #f5ede6 0%, #e8d5c4 50%, #d4b896 100%)" }}
+        onClick={() => bannerInputRef.current?.click()}>
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 bg-black/50 text-white text-xs font-medium px-4 py-2 rounded-full">
+            {uploading === "banner"
+              ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Uploading...</>
+              : <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" /></svg>Change Banner</>}
+          </div>
+        </div>
+        <input ref={bannerInputRef} type="file" accept="image/*" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f, "banner"); e.target.value = ""; }} />
+      </div>
+
+      {/* Avatar + info */}
+      <div className="px-6 pb-6">
+        <div className="-mt-12 flex flex-col sm:flex-row sm:items-end gap-4">
+          {/* Avatar with upload */}
+          <div className="relative shrink-0 group cursor-pointer w-24 h-24"
+            onClick={() => avatarInputRef.current?.click()}>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={displayName}
+                className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-md bg-cream-100" />
+            ) : (
+              <div className="w-24 h-24 rounded-full border-4 border-white shadow-md bg-warm-brown/20 flex items-center justify-center text-warm-brown text-3xl font-semibold">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+              {uploading === "avatar"
+                ? <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin opacity-0 group-hover:opacity-100" />
+                : <svg className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" /></svg>}
+            </div>
+            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f, "avatar"); e.target.value = ""; }} />
+          </div>
+
+          {/* Name + role */}
+          <div className="flex-1 min-w-0 pt-2 sm:pt-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="font-serif text-2xl font-semibold text-charcoal">{displayName}</h1>
+              <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold tracking-wide ${roleBadge === "Expert" ? "bg-warm-brown/15 text-warm-brown-dark" : "bg-charcoal/8 text-charcoal"}`}>
+                {roleBadge}
+              </span>
+            </div>
+            {affiliation && <p className="text-sm text-text-muted mt-0.5">{affiliation}</p>}
+          </div>
+
+          {/* Edit profile */}
+          <Link href="/onboarding" className="self-start sm:self-end shrink-0 inline-flex items-center gap-1.5 px-5 py-2 border border-charcoal/20 text-charcoal text-sm font-medium rounded-full hover:bg-charcoal hover:text-white transition-colors">
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            Edit Profile
+          </Link>
+        </div>
+
+        {bio && <p className="mt-4 text-sm text-charcoal/80 leading-relaxed max-w-3xl">{bio}</p>}
+        {expertise.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {expertise.map((field: string) => (
+              <span key={field} className="px-3 py-1 text-xs font-medium rounded-full bg-cream-bg border border-warm-brown/15 text-charcoal/70">{field}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -99,6 +237,7 @@ function AvailabilitySettings({ uid }: { uid: string }) {
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -114,15 +253,21 @@ function AvailabilitySettings({ uid }: { uid: string }) {
       return exists ? prev.filter((s) => !(s.dow === dow && s.time === time)) : [...prev, { dow, time }];
     });
     setSaved(false);
+    setSaveError("");
   }
 
   async function save() {
     setSaving(true);
+    setSaveError("");
     try {
       await setDoc(doc(db, "availability", uid), { slots, updatedAt: new Date().toISOString() });
       setSaved(true);
-    } catch (err) { console.error(err); }
-    finally { setSaving(false); }
+    } catch (err) {
+      console.error("Save availability error:", err);
+      setSaveError("Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <div className="h-8 flex items-center"><div className="w-4 h-4 border-2 border-warm-brown/30 border-t-warm-brown rounded-full animate-spin" /></div>;
@@ -170,6 +315,7 @@ function AvailabilitySettings({ uid }: { uid: string }) {
           {saving ? "Saving..." : "Save Availability"}
         </button>
         {saved && <span className="text-xs text-green-600 font-medium">Saved!</span>}
+        {saveError && <span className="text-xs text-red-600 font-medium">{saveError}</span>}
       </div>
     </div>
   );
@@ -264,51 +410,8 @@ export default function DashboardPage() {
 
       {/* 1. PROFILE HEADER */}
       <motion.section initial={{ opacity: 0, y: 32 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="mb-10">
-        <div className="relative rounded-2xl overflow-hidden">
-          <div className="h-32 bg-warm-brown/10" />
-          <div className="px-6 pb-6">
-            <div className="-mt-12 flex flex-col sm:flex-row sm:items-end gap-5">
-              <div className="shrink-0">
-                {profile?.photoURL || user?.photoURL ? (
-                  <img
-                    src={profile?.photoURL || user?.photoURL || ""}
-                    alt={profile?.displayName || "User"}
-                    className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-md bg-cream-100"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-full border-4 border-white shadow-md bg-warm-brown/20 flex items-center justify-center text-warm-brown text-3xl font-semibold">
-                    {(profile?.displayName || user.displayName || "U").charAt(0).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0 pt-2 sm:pt-0">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                  <h1 className="font-serif text-2xl font-semibold text-charcoal truncate">
-                    {profile?.displayName || user.displayName || "User"}
-                  </h1>
-                  <span className={`inline-flex items-center self-start px-3 py-0.5 rounded-full text-xs font-semibold tracking-wide ${roleBadge === "Expert" ? "bg-warm-brown/15 text-warm-brown-dark" : "bg-anthropic-tan/30 text-charcoal"}`}>
-                    {roleBadge}
-                  </span>
-                </div>
-                <p className="text-sm text-text-muted mt-0.5">{profile?.affiliation || ""}</p>
-              </div>
-              <Link href="/onboarding" className="self-start sm:self-end shrink-0 inline-flex items-center gap-1.5 px-5 py-2 border border-charcoal/20 text-charcoal text-sm font-medium rounded-full hover:bg-charcoal hover:text-white transition-colors duration-200">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-                Edit Profile
-              </Link>
-            </div>
-            {profile?.bio && <p className="mt-4 text-sm text-charcoal/80 leading-relaxed max-w-3xl">{profile.bio}</p>}
-            {profile?.expertise?.length ? (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {profile.expertise.map((field: string) => (
-                  <span key={field} className="px-3 py-1 text-xs font-medium rounded-full bg-cream-100 border border-cream-200 text-charcoal/70">{field}</span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
+        <ProfileHeader user={user} profile={profile} roleBadge={roleBadge} />
+
       </motion.section>
 
       {/* 2. STATS */}

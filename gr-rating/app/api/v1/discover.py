@@ -7,6 +7,7 @@ import json
 from app.database import get_session
 from app.models.researcher import Researcher
 from app.models.gr_rating import GRRating
+from app.models.raw_metrics import RawMetrics
 
 router = APIRouter(prefix="/api/v1/discover", tags=["discover"])
 
@@ -94,17 +95,18 @@ async def get_researcher(
     researcher_id: str,
     session: AsyncSession = Depends(get_session),
 ):
+    from fastapi import HTTPException
     stmt = (
-        select(Researcher, GRRating)
+        select(Researcher, GRRating, RawMetrics)
         .join(GRRating, Researcher.id == GRRating.researcher_id)
+        .outerjoin(RawMetrics, Researcher.id == RawMetrics.researcher_id)
         .where(Researcher.id == researcher_id)
     )
     result = (await session.execute(stmt)).first()
     if not result:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Researcher not found")
 
-    r, gr = result
+    r, gr, rm = result
     topics_list: list[str] = []
     if r.topics:
         try:
@@ -122,7 +124,7 @@ async def get_researcher(
     return {
         "id": str(r.id),
         "firebase_uid": r.google_scholar_id or "",
-        "openalex_id": r.openalex_id,
+        "openalex_id": r.openalex_id or "",
         "name": r.name,
         "affiliation": r.affiliation or "",
         "bio": r.bio or "",
@@ -134,4 +136,60 @@ async def get_researcher(
         "tier_label": TIER_LABEL.get(gr.tier, "Verified"),
         "rank": gr.rank_overall,
         "orcid": r.orcid or "",
+        # Research metrics from raw_metrics table
+        "h_index": rm.h_index if rm else 0,
+        "total_citations": rm.total_citations if rm else 0,
+        "publications_count": rm.publications if rm else 0,
+        "i10_index": rm.i10_index if rm else 0,
+        "total_patents": rm.total_patents if rm else 0,
+        # GR score breakdown
+        "p1_score": round(gr.p1_score, 1),
+        "p2_score": round(gr.p2_score, 1),
+        "p3_score": round(gr.p3_score, 1),
+        "p4_score": round(gr.p4_score, 1),
     }
+
+
+@router.get("/{researcher_id}/publications")
+async def get_researcher_publications(researcher_id: str, session: AsyncSession = Depends(get_session)):
+    """Fetch top publications from OpenAlex for a researcher."""
+    from fastapi import HTTPException
+    import httpx
+
+    r = await session.get(Researcher, researcher_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Researcher not found")
+    if not r.openalex_id:
+        return {"publications": []}
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                "https://api.openalex.org/works",
+                params={
+                    "filter": f"authorships.author.id:{r.openalex_id}",
+                    "sort": "cited_by_count:desc",
+                    "per-page": "10",
+                    "select": "id,doi,title,publication_year,cited_by_count,primary_location,type,open_access",
+                },
+                headers={"User-Agent": "GRConnect/1.0"},
+            )
+        if not resp.is_success:
+            return {"publications": []}
+
+        works = resp.json().get("results", [])
+        pubs = []
+        for w in works:
+            venue = (w.get("primary_location") or {}).get("source") or {}
+            pubs.append({
+                "title": w.get("title", "Untitled"),
+                "year": w.get("publication_year"),
+                "citations": w.get("cited_by_count", 0),
+                "doi": w.get("doi", ""),
+                "venue": venue.get("display_name", ""),
+                "type": w.get("type", ""),
+                "open_access": (w.get("open_access") or {}).get("is_oa", False),
+            })
+        return {"publications": pubs}
+    except Exception:
+        return {"publications": []}

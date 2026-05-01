@@ -35,10 +35,10 @@ interface AuthContextType {
   profile: UserProfile | null;
   isLoggedIn: boolean;
   loading: boolean;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: (role?: "seeker" | "expert") => Promise<void>;
   loginWithEmail: (email: string, password: string) => Promise<void>;
   signupWithEmail: (email: string, password: string, name: string, role: "seeker" | "expert") => Promise<void>;
-  signupWithOrcid: (orcid: string, role?: "seeker" | "expert") => Promise<{ success: boolean; error?: string }>;
+  signupWithOrcid: (orcid: string, role?: "seeker" | "expert", realEmail?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   updateUserProfile: (data: Partial<UserProfile>) => Promise<void>;
 }
@@ -56,7 +56,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (firebaseUser) {
         const profileDoc = await getDoc(doc(db, "users", firebaseUser.uid));
         if (profileDoc.exists()) {
-          setProfile(profileDoc.data() as UserProfile);
+          const profileData = profileDoc.data() as UserProfile;
+          setProfile(profileData);
+          // Always keep email, displayName, photoURL in sync with Firebase Auth
+          const updates: Record<string, unknown> = {};
+          if (firebaseUser.email && profileData.email !== firebaseUser.email) updates.email = firebaseUser.email;
+          if (firebaseUser.displayName && profileData.displayName !== firebaseUser.displayName) updates.displayName = firebaseUser.displayName;
+          if (firebaseUser.photoURL && profileData.photoURL !== firebaseUser.photoURL) updates.photoURL = firebaseUser.photoURL;
+          if (Object.keys(updates).length > 0) {
+            await updateDoc(doc(db, "users", firebaseUser.uid), updates);
+            setProfile({ ...profileData, ...updates } as UserProfile);
+          }
         } else {
           const newProfile: UserProfile = {
             uid: firebaseUser.uid,
@@ -69,13 +79,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await setDoc(doc(db, "users", firebaseUser.uid), { ...newProfile, createdAt: serverTimestamp() });
           setProfile(newProfile);
         }
-        // Generate keypair if not already stored, publish public key to Firestore
+        // Generate keypair if not in localStorage, always sync public key to Firestore
         try {
           const { publicKey } = getOrCreateKeyPair(firebaseUser.uid);
-          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-          if (!userDoc.data()?.publicKey) {
-            await updateDoc(doc(db, "users", firebaseUser.uid), { publicKey });
-          }
+          await updateDoc(doc(db, "users", firebaseUser.uid), { publicKey });
         } catch {
           // localStorage unavailable (SSR) — skip silently
         }
@@ -87,8 +94,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  async function loginWithGoogle() {
-    await signInWithPopup(auth, googleProvider);
+  async function loginWithGoogle(role?: "seeker" | "expert") {
+    const cred = await signInWithPopup(auth, googleProvider);
+    const firebaseUser = cred.user;
+
+    if (role) {
+      await setDoc(doc(db, "users", firebaseUser.uid), { role }, { merge: true });
+      setProfile((prev) => prev ? { ...prev, role } : null);
+    }
+
+    // Sync expert to backend on every login so name/photo stay up to date
+    const profileSnap = await getDoc(doc(db, "users", firebaseUser.uid));
+    const profileData = profileSnap.data();
+    const effectiveRole = role ?? profileData?.role;
+    if (effectiveRole === "expert") {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        await fetch(`${apiUrl}/api/v1/researchers/sync-google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firebase_uid: firebaseUser.uid,
+            name: firebaseUser.displayName || profileData?.displayName || "Unknown",
+            email: firebaseUser.email || "",
+            affiliation: profileData?.affiliation || "",
+            bio: profileData?.bio || "",
+            topics: profileData?.expertise || [],
+            photo_url: firebaseUser.photoURL || profileData?.photoURL || "",
+          }),
+        });
+      } catch {
+        // Non-critical
+      }
+    }
   }
 
   async function loginWithEmail(email: string, password: string) {
@@ -115,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }
 
-  async function signupWithOrcid(orcid: string, role: "seeker" | "expert" = "expert"): Promise<{ success: boolean; error?: string }> {
+  async function signupWithOrcid(orcid: string, role: "seeker" | "expert" = "expert", realEmail?: string): Promise<{ success: boolean; error?: string }> {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -155,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const newProfile: UserProfile = {
         uid: firebaseUser.uid,
-        email: firebaseUser.email,
+        email: realEmail || firebaseUser.email,
         displayName: data.name,
         photoURL: data.photo_url || null,
         role,
@@ -188,8 +226,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Sync Google experts to backend so they appear on discover page
     const isExpert = (data.role ?? profile?.role) === "expert";
-    const completing = data.onboardingComplete === true;
-    if (isExpert && completing) {
+    const hasProfileData = data.bio || data.affiliation || data.expertise?.length || data.onboardingComplete;
+    if (isExpert && hasProfileData) {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         await fetch(`${apiUrl}/api/v1/researchers/sync-google`, {

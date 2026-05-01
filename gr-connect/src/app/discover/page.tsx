@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { sdgData } from "@/data/mockData";
 import { useAuth } from "@/lib/AuthContext";
 import { collection, addDoc, getDocs, query, where, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -32,16 +31,40 @@ interface Expert {
 /* ------------------------------------------------------------------ */
 /* Quick filters                                                       */
 /* ------------------------------------------------------------------ */
-const quickFilters = ["All", "IoT", "AI/ML", "Biology", "Climate", "Security"] as const;
+const quickFilters = ["All", "IoT", "AI/ML", "Biology", "Climate", "Security", "Medicine", "Materials", "Robotics", "Energy"] as const;
 type QuickFilter = (typeof quickFilters)[number];
 
 const quickFilterKeywords: Record<QuickFilter, string[]> = {
   All: [],
-  IoT: ["iot", "internet of things", "smart"],
-  "AI/ML": ["machine learning", "artificial intelligence", "nlp", "deep learning", "data science"],
-  Biology: ["biology", "genomics", "crispr", "bioinformatics"],
-  Climate: ["climate", "renewable energy", "carbon", "environmental"],
-  Security: ["cybersecurity", "security", "blockchain"],
+  IoT: ["iot", "internet of things", "smart", "sensor", "wireless"],
+  "AI/ML": ["machine learning", "artificial intelligence", "nlp", "deep learning", "data science", "neural", "computer vision"],
+  Biology: ["biology", "genomics", "crispr", "bioinformatics", "biomedical", "cancer", "clinical"],
+  Climate: ["climate", "renewable energy", "carbon", "environmental", "sustainability", "ecology"],
+  Security: ["cybersecurity", "security", "blockchain", "cryptography", "network security"],
+  Medicine: ["medicine", "health", "pharmaceutical", "drug", "medical", "diagnosis", "therapy"],
+  Materials: ["materials", "polymer", "composite", "battery", "supercapacitor", "nanomaterial"],
+  Robotics: ["robotics", "automation", "mechatronics", "control systems"],
+  Energy: ["energy", "solar", "photovoltaic", "fuel cell", "power systems"],
+};
+
+const SDG_META_DISCOVER: Record<number, { label: string; color: string; short: string }> = {
+  1:  { label: "No Poverty",              color: "#E5243B", short: "Poverty" },
+  2:  { label: "Zero Hunger",             color: "#DDA63A", short: "Hunger" },
+  3:  { label: "Good Health",             color: "#4C9F38", short: "Health" },
+  4:  { label: "Quality Education",       color: "#C5192D", short: "Education" },
+  5:  { label: "Gender Equality",         color: "#FF3A21", short: "Equality" },
+  6:  { label: "Clean Water",             color: "#26BDE2", short: "Water" },
+  7:  { label: "Clean Energy",            color: "#FCC30B", short: "Energy" },
+  8:  { label: "Decent Work",             color: "#A21942", short: "Work" },
+  9:  { label: "Industry & Innovation",   color: "#FD6925", short: "Innovation" },
+  10: { label: "Reduced Inequalities",    color: "#DD1367", short: "Inequality" },
+  11: { label: "Sustainable Cities",      color: "#FD9D24", short: "Cities" },
+  12: { label: "Responsible Consumption", color: "#BF8B2E", short: "Consumption" },
+  13: { label: "Climate Action",          color: "#3F7E44", short: "Climate" },
+  14: { label: "Life Below Water",        color: "#0A97D9", short: "Ocean" },
+  15: { label: "Life On Land",            color: "#56C02B", short: "Land" },
+  16: { label: "Peace & Justice",         color: "#00689D", short: "Justice" },
+  17: { label: "Partnerships",            color: "#19486A", short: "Partners" },
 };
 
 /* ------------------------------------------------------------------ */
@@ -69,7 +92,10 @@ export default function DiscoverPage() {
   const [search, setSearch] = useState("");
   const [selectedSdgs, setSelectedSdgs] = useState<Set<number>>(new Set());
   const [activeQuick, setActiveQuick] = useState<QuickFilter>("All");
+  const [selectedTier, setSelectedTier] = useState<string>("All");
+  const [minRating, setMinRating] = useState<number>(0);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const hasFilters = search || selectedSdgs.size > 0 || activeQuick !== "All" || selectedTier !== "All" || minRating > 0;
 
   /* fetch from backend */
   useEffect(() => {
@@ -111,8 +137,16 @@ export default function DiscoverPage() {
       );
     }
 
+    if (selectedTier !== "All") {
+      list = list.filter((e) => e.tier_label === selectedTier);
+    }
+
+    if (minRating > 0) {
+      list = list.filter((e) => e.gr_rating >= minRating);
+    }
+
     return list;
-  }, [experts, search, selectedSdgs, activeQuick]);
+  }, [experts, search, selectedSdgs, activeQuick, selectedTier, minRating]);
 
   const displayed = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
@@ -167,55 +201,81 @@ export default function DiscoverPage() {
       <div className="max-w-7xl mx-auto px-6 py-10 flex gap-8">
 
         {/* LEFT SIDEBAR */}
-        <aside className="w-72 shrink-0 sticky top-24 overflow-y-auto max-h-[calc(100vh-6rem)] pr-2 hidden lg:block">
-          <div className="space-y-7">
+        <aside className="w-64 shrink-0 sticky top-24 overflow-y-auto max-h-[calc(100vh-6rem)] pr-1 hidden lg:block">
+          <div className="space-y-6">
+
             {/* Search */}
-            <div>
-              <label className="label-xs text-text-muted mb-2 block">Search</label>
-              <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Name, topic, institution..."
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE); }}
-                  className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-clay-muted/60 bg-surface-cream focus:outline-none focus:ring-2 focus:ring-warm-brown/30 focus:border-warm-brown placeholder:text-text-muted/50 transition"
-                />
-              </div>
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
+              </svg>
+              <input type="text" placeholder="Name, topic, institution..."
+                value={search} onChange={(e) => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE); }}
+                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border border-warm-brown/20 bg-white focus:outline-none focus:border-warm-brown placeholder:text-text-muted/50 transition shadow-sm" />
             </div>
 
-            {/* SDG Alignment */}
+            {/* Tier */}
             <div>
-              <label className="label-xs text-text-muted mb-3 block">SDG Alignment</label>
-              <div className="grid grid-cols-4 gap-1.5">
-                {sdgData.map((sdg) => (
-                  <button
-                    key={sdg.id}
-                    title={sdg.name}
-                    onClick={() => { toggleSdg(sdg.id); setVisibleCount(PAGE_SIZE); }}
-                    className="relative w-full aspect-square rounded-lg text-[10px] font-bold text-white flex items-center justify-center transition-all"
-                    style={{
-                      backgroundColor: sdg.color,
-                      opacity: selectedSdgs.size === 0 || selectedSdgs.has(sdg.id) ? 1 : 0.35,
-                      outline: selectedSdgs.has(sdg.id) ? `2px solid ${sdg.color}` : "none",
-                      outlineOffset: "2px",
-                    }}
-                  >
-                    {sdg.id}
+              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2.5">GR Tier</p>
+              <div className="space-y-1">
+                {[
+                  { label: "All Tiers", value: "All" },
+                  { label: "Elite", value: "Elite", dot: "#1a1a1a" },
+                  { label: "Premier", value: "Premier", dot: "#8B5E3C" },
+                  { label: "Verified", value: "Verified", dot: "#9d8461" },
+                ].map(({ label, value, dot }) => (
+                  <button key={value} onClick={() => { setSelectedTier(value); setVisibleCount(PAGE_SIZE); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${selectedTier === value ? "bg-charcoal text-white" : "text-charcoal hover:bg-warm-brown/8"}`}>
+                    {dot && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />}
+                    {label}
                   </button>
                 ))}
               </div>
             </div>
 
+            {/* Min GR Rating */}
+            <div>
+              <div className="flex justify-between items-center mb-2.5">
+                <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Min GR Rating</p>
+                <span className="text-xs font-semibold text-warm-brown">{minRating > 0 ? `≥ ${minRating}` : "Any"}</span>
+              </div>
+              <input type="range" min={0} max={90} step={10} value={minRating}
+                onChange={(e) => { setMinRating(Number(e.target.value)); setVisibleCount(PAGE_SIZE); }}
+                className="w-full accent-warm-brown h-1.5 rounded-full" />
+              <div className="flex justify-between text-[9px] text-text-muted mt-1">
+                <span>0</span><span>30</span><span>60</span><span>90</span>
+              </div>
+            </div>
+
+            {/* SDG Alignment */}
+            <div>
+              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2.5">SDG Alignment</p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {Object.entries(SDG_META_DISCOVER).map(([id, meta]) => {
+                  const sdgId = Number(id);
+                  const active = selectedSdgs.has(sdgId);
+                  return (
+                    <button key={sdgId} title={meta.label}
+                      onClick={() => { toggleSdg(sdgId); setVisibleCount(PAGE_SIZE); }}
+                      className="relative aspect-square rounded-lg text-[10px] font-bold text-white flex flex-col items-center justify-center gap-0.5 transition-all hover:scale-105"
+                      style={{
+                        backgroundColor: meta.color,
+                        opacity: selectedSdgs.size === 0 || active ? 1 : 0.4,
+                        boxShadow: active ? `0 0 0 2px white, 0 0 0 4px ${meta.color}` : "none",
+                      }}>
+                      <span className="text-[11px] font-bold">{sdgId}</span>
+                      <span className="text-[7px] font-semibold uppercase tracking-wide leading-tight text-center px-0.5 opacity-90 line-clamp-1">{meta.short}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Clear filters */}
-            {(search || selectedSdgs.size > 0 || activeQuick !== "All") && (
-              <button
-                onClick={() => { setSearch(""); setSelectedSdgs(new Set()); setActiveQuick("All"); setVisibleCount(PAGE_SIZE); }}
-                className="w-full py-2.5 text-sm font-medium rounded-xl border border-clay-muted/50 text-charcoal hover:bg-cream-bg transition-colors"
-              >
-                Clear Filters
+            {hasFilters && (
+              <button onClick={() => { setSearch(""); setSelectedSdgs(new Set()); setActiveQuick("All"); setSelectedTier("All"); setMinRating(0); setVisibleCount(PAGE_SIZE); }}
+                className="w-full py-2 text-xs font-semibold rounded-lg border border-warm-brown/20 text-warm-brown hover:bg-warm-brown/5 transition-colors">
+                Clear All Filters
               </button>
             )}
           </div>
@@ -342,14 +402,11 @@ export default function DiscoverPage() {
                         <div className="flex items-center gap-1.5 mt-3">
                           <span className="text-[10px] text-text-muted mr-1 uppercase tracking-wider font-semibold">SDGs</span>
                           {expert.sdg_ids.map((sdgId) => {
-                            const sdg = sdgData.find((s) => s.id === sdgId);
+                            const meta = SDG_META_DISCOVER[sdgId];
                             return (
-                              <span
-                                key={sdgId}
-                                title={sdg?.name}
-                                className="w-5 h-5 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
-                                style={{ backgroundColor: sdg?.color ?? "#888" }}
-                              >
+                              <span key={sdgId} title={meta?.label}
+                                className="w-5 h-5 rounded text-[9px] font-bold text-white flex items-center justify-center"
+                                style={{ backgroundColor: meta?.color ?? "#888" }}>
                                 {sdgId}
                               </span>
                             );

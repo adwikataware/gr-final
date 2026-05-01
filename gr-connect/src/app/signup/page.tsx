@@ -11,19 +11,19 @@ type Role = "seeker" | "expert";
 function SignupForm() {
   const [role, setRole] = useState<Role>("seeker");
   const [orcid, setOrcid] = useState("");
+  const [orcidRealEmail, setOrcidRealEmail] = useState("");
   const [orcidStatus, setOrcidStatus] = useState<"idle" | "loading" | "error">("idle");
   const [orcidError, setOrcidError] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
-  const { loginWithGoogle, signupWithOrcid, updateUserProfile } = useAuth();
+  const { loginWithGoogle, signupWithOrcid } = useAuth();
   const router = useRouter();
 
   async function handleGoogleSignup() {
     setError("");
     setGoogleLoading(true);
     try {
-      await loginWithGoogle();
-      await updateUserProfile({ role, onboardingComplete: false });
+      await loginWithGoogle(role);
       router.push("/onboarding");
     } catch {
       setError("Google sign-in failed. Please try again.");
@@ -34,9 +34,14 @@ function SignupForm() {
 
   async function handleOrcidSignup() {
     if (!orcid.trim()) return;
+    if (!orcidRealEmail.trim()) {
+      setOrcidStatus("error");
+      setOrcidError("Please enter your real email address.");
+      return;
+    }
     setOrcidStatus("loading");
     setOrcidError("");
-    const result = await signupWithOrcid(orcid.trim(), role);
+    const result = await signupWithOrcid(orcid.trim(), role, orcidRealEmail.trim());
     if (result.success) {
       router.push("/dashboard");
     } else {
@@ -133,6 +138,13 @@ function SignupForm() {
                 </svg>
                 <span className="text-sm font-medium text-charcoal">Continue with ORCID</span>
               </div>
+              <input
+                type="email"
+                value={orcidRealEmail}
+                onChange={(e) => { setOrcidRealEmail(e.target.value); setOrcidStatus("idle"); setOrcidError(""); }}
+                placeholder="Your real email (for meeting invites)"
+                className="w-full px-3 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-green-700 transition-colors"
+              />
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -144,7 +156,7 @@ function SignupForm() {
                 />
                 <button
                   onClick={handleOrcidSignup}
-                  disabled={!orcid.trim() || orcidStatus === "loading" || googleLoading}
+                  disabled={!orcid.trim() || !orcidRealEmail.trim() || orcidStatus === "loading" || googleLoading}
                   className="px-4 py-2.5 bg-green-700 text-white text-sm font-medium rounded-xl hover:bg-green-800 transition-colors disabled:opacity-50 shrink-0"
                 >
                   {orcidStatus === "loading" ? "..." : "Go"}

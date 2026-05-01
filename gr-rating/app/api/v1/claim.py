@@ -4,6 +4,7 @@ Called from onboarding when an expert enters their ORCID.
 Fetches real data from OpenAlex and upserts a researcher record linked to Firebase UID.
 """
 import json
+import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -53,6 +54,7 @@ class SyncGoogleRequest(BaseModel):
     affiliation: str = ""
     bio: str = ""
     topics: list[str] = []
+    sdg_ids: list[int] = []
     photo_url: str = ""
 
 
@@ -66,7 +68,7 @@ async def sync_google_expert(body: SyncGoogleRequest, session: AsyncSession = De
     if existing:
         r = existing
     else:
-        r = Researcher(id=uuid.uuid4(), openalex_id=f"google_{body.firebase_uid}")
+        r = Researcher(id=uuid.uuid4(), openalex_id=f"g_{body.firebase_uid[:16]}")
         session.add(r)
 
     r.name = body.name
@@ -74,7 +76,7 @@ async def sync_google_expert(body: SyncGoogleRequest, session: AsyncSession = De
     r.bio = body.bio or f"{body.name} — researcher on GR Connect."
     r.photo_url = body.photo_url or f"https://ui-avatars.com/api/?name={body.name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
     r.topics = json.dumps(body.topics) if body.topics else json.dumps([])
-    r.sdg_ids = ""
+    r.sdg_ids = ",".join(str(x) for x in body.sdg_ids) if body.sdg_ids else (r.sdg_ids or "")
     r.google_scholar_id = body.firebase_uid
 
     await session.flush()
@@ -141,7 +143,8 @@ async def orcid_lookup(body: OrcidLookupRequest):
             affiliation = last[0].get("display_name", "")
     topics = [t.get("display_name", "") for t in author.get("topics", [])[:6] if t.get("display_name")]
     bio = f"Researcher with {works_count} publications and {cited_by_count} citations."
-    photo_url = f"https://ui-avatars.com/api/?name={display_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
+    clean_name = re.sub(r'^(Dr\.?|Prof\.?|Mr\.?|Mrs\.?|Ms\.?)\s+', '', display_name)
+    photo_url = f"https://ui-avatars.com/api/?name={clean_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
 
     return {
         "name": display_name,
@@ -236,7 +239,8 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
     topics = [t.get("display_name", "") for t in author.get("topics", [])[:6] if t.get("display_name")]
     sdg_ids = extract_sdgs(author, topics)
     bio = f"Researcher with {works_count} publications and {cited_by_count} citations."
-    photo_url = f"https://ui-avatars.com/api/?name={display_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
+    clean_name = re.sub(r'^(Dr\.?|Prof\.?|Mr\.?|Mrs\.?|Ms\.?)\s+', '', display_name)
+    photo_url = f"https://ui-avatars.com/api/?name={clean_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
     gr_rating, tier = compute_gr(works_count, cited_by_count, h_index)
 
     # Check if researcher already exists by openalex_id or firebase_uid

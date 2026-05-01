@@ -44,9 +44,43 @@ function statusLabel(status: Booking["status"]) {
   return "Cancelled";
 }
 
-function generateMeetLink() {
-  const seg = () => Math.random().toString(36).substring(2, 5);
-  return `https://meet.google.com/${seg()}-${seg()}${seg()}-${seg()}`;
+async function createRealMeetLink(booking: Booking): Promise<string> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  // If emails missing from booking doc, fetch them from users collection
+  let expertEmail = booking.expertEmail || "";
+  let seekerEmail = booking.seekerEmail || "";
+  if (!expertEmail || !seekerEmail) {
+    const { getDoc, doc } = await import("firebase/firestore");
+    const { db } = await import("@/lib/firebase");
+    if (!expertEmail && booking.expertId) {
+      const snap = await getDoc(doc(db, "users", booking.expertId));
+      expertEmail = snap.data()?.email || "";
+    }
+    if (!seekerEmail && booking.seekerId) {
+      const snap = await getDoc(doc(db, "users", booking.seekerId));
+      seekerEmail = snap.data()?.email || "";
+    }
+  }
+  console.log("[Meet] expertEmail:", expertEmail, "seekerEmail:", seekerEmail);
+
+  const res = await fetch(`${apiUrl}/api/v1/meetings/create`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      booking_id: booking.id,
+      expert_name: booking.expertName,
+      seeker_name: booking.seekerName,
+      expert_email: expertEmail,
+      seeker_email: seekerEmail,
+      date: booking.date,
+      time: booking.time,
+      note: booking.note || "",
+    }),
+  });
+  if (!res.ok) throw new Error("Meet creation failed");
+  const data = await res.json();
+  return data.meet_link;
 }
 
 export default function MyBookingsPage() {
@@ -89,58 +123,61 @@ export default function MyBookingsPage() {
 
   async function handleAccept(booking: Booking) {
     setActionLoading(booking.id);
-    const meetLink = generateMeetLink();
     try {
+      // 1. Create real Google Calendar event + Meet link
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const meetLink = await createRealMeetLink(booking);
+
+      // 2. Save confirmed status + real Meet link to Firestore
       await updateDoc(doc(db, "bookings", booking.id), {
         status: "confirmed",
         meetLink,
         confirmedAt: serverTimestamp(),
       });
 
-      // Send email notifications
-      const emailHtml = (name: string, role: "seeker" | "expert") => `
+      // 3. Send email via backend (handles missing RESEND_API_KEY gracefully)
+      const emailHtml = (name: string) => `
         <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-          <h2 style="color:#3d2b1f">Booking Confirmed 🎉</h2>
+          <h2 style="color:#3d2b1f">Session Confirmed!</h2>
           <p>Hi ${name},</p>
-          <p>Your session has been <strong>confirmed</strong>.</p>
-          <table style="width:100%;border-collapse:collapse;margin:16px 0">
-            <tr><td style="padding:8px 0;color:#666">Expert</td><td style="padding:8px 0;font-weight:600">${booking.expertName}</td></tr>
-            <tr><td style="padding:8px 0;color:#666">Date</td><td style="padding:8px 0;font-weight:600">${booking.date}</td></tr>
-            <tr><td style="padding:8px 0;color:#666">Time</td><td style="padding:8px 0;font-weight:600">${booking.time}</td></tr>
+          <p>Your consultation has been <strong>confirmed</strong>.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #eee;border-radius:8px">
+            <tr style="background:#faf8f5"><td style="padding:10px 16px;color:#666;font-size:14px">Expert</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.expertName}</td></tr>
+            <tr><td style="padding:10px 16px;color:#666;font-size:14px">Date</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.date}</td></tr>
+            <tr style="background:#faf8f5"><td style="padding:10px 16px;color:#666;font-size:14px">Time</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.time}</td></tr>
           </table>
-          <a href="${meetLink}" style="display:inline-block;background:#8B5E3C;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">
-            Join Google Meet
+          <a href="${meetLink}" style="display:inline-block;background:#8B5E3C;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;margin:8px 0">
+            Join Google Meet →
           </a>
-          <p style="margin-top:16px;color:#666;font-size:14px">Meet link: ${meetLink}</p>
-          <p style="color:#999;font-size:12px;margin-top:24px">GR Connect — Research Consultation Platform</p>
+          <p style="margin-top:12px;color:#888;font-size:13px">Or copy the link: ${meetLink}</p>
+          <hr style="margin:24px 0;border:none;border-top:1px solid #eee"/>
+          <p style="color:#aaa;font-size:12px">GR Connect — Research Consultation Platform</p>
         </div>
       `;
 
-      // Fire and forget — no RESEND_API_KEY = silently skipped server-side
-      if (booking.seekerEmail) {
-        fetch("/api/send-booking-email", {
+      const recipients: { to: string; name: string }[] = [];
+      if (booking.seekerEmail) recipients.push({ to: booking.seekerEmail, name: booking.seekerName });
+      if (booking.expertEmail) recipients.push({ to: booking.expertEmail, name: booking.expertName });
+
+      for (const r of recipients) {
+        fetch(`${apiUrl}/api/v1/meetings/send-email`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            to: booking.seekerEmail,
-            subject: `Session Confirmed with ${booking.expertName}`,
-            html: emailHtml(booking.seekerName, "seeker"),
-          }),
-        }).catch(() => {});
-      }
-      if (booking.expertEmail) {
-        fetch("/api/send-booking-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: booking.expertEmail,
-            subject: `You confirmed a session with ${booking.seekerName}`,
-            html: emailHtml(booking.expertName, "expert"),
+            to: [r.to],
+            subject: `Session Confirmed — ${booking.date} at ${booking.time}`,
+            html: emailHtml(r.name),
           }),
         }).catch(() => {});
       }
     } catch (err) {
-      console.error(err);
+      console.error("Accept booking error:", err);
+      // If Meet creation fails, still confirm the booking so expert can share link manually
+      await updateDoc(doc(db, "bookings", booking.id), {
+        status: "confirmed",
+        meetLink: "",
+        confirmedAt: serverTimestamp(),
+      }).catch(() => {});
     } finally {
       setActionLoading(null);
     }
@@ -152,6 +189,55 @@ export default function MyBookingsPage() {
       await updateDoc(doc(db, "bookings", bookingId), { status: "cancelled" });
     } catch (err) {
       console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleGenerateMeetLink(booking: Booking) {
+    setActionLoading(booking.id);
+    try {
+      const meetLink = await createRealMeetLink(booking);
+      await updateDoc(doc(db, "bookings", booking.id), { meetLink });
+
+      // Send email with meet link to both participants
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const emailHtml = (name: string) => `
+        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
+          <h2 style="color:#3d2b1f">Your Meeting Link is Ready</h2>
+          <p>Hi ${name},</p>
+          <p>Your consultation has been confirmed and the meeting link is ready.</p>
+          <table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #eee;border-radius:8px">
+            <tr style="background:#faf8f5"><td style="padding:10px 16px;color:#666;font-size:14px">Expert</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.expertName}</td></tr>
+            <tr><td style="padding:10px 16px;color:#666;font-size:14px">Date</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.date}</td></tr>
+            <tr style="background:#faf8f5"><td style="padding:10px 16px;color:#666;font-size:14px">Time</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.time}</td></tr>
+          </table>
+          <a href="${meetLink}" style="display:inline-block;background:#8B5E3C;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;margin:8px 0">
+            Join Google Meet →
+          </a>
+          <p style="margin-top:12px;color:#888;font-size:13px">Or copy: ${meetLink}</p>
+          <hr style="margin:24px 0;border:none;border-top:1px solid #eee"/>
+          <p style="color:#aaa;font-size:12px">GR Connect — Research Consultation Platform</p>
+        </div>
+      `;
+
+      const recipients: { to: string; name: string }[] = [];
+      if (booking.seekerEmail) recipients.push({ to: booking.seekerEmail, name: booking.seekerName });
+      if (booking.expertEmail) recipients.push({ to: booking.expertEmail, name: booking.expertName });
+
+      for (const r of recipients) {
+        fetch(`${apiUrl}/api/v1/meetings/send-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            to: [r.to],
+            subject: `Meeting Link — ${booking.date} at ${booking.time}`,
+            html: emailHtml(r.name),
+          }),
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error("Meet link generation error:", err);
     } finally {
       setActionLoading(null);
     }
@@ -331,17 +417,29 @@ export default function MyBookingsPage() {
                       {/* Meet link + actions for confirmed */}
                       {isConfirmed && (
                         <div className="flex items-center gap-3 mt-4 flex-wrap">
-                          <a
-                            href={booking.meetLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-warm-brown text-white text-xs font-semibold rounded-full hover:bg-warm-brown-dark transition-colors"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
-                            </svg>
-                            Join Meet
-                          </a>
+                          {booking.meetLink ? (
+                            <a
+                              href={booking.meetLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-warm-brown text-white text-xs font-semibold rounded-full hover:bg-warm-brown-dark transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <polygon points="23 7 16 12 23 17 23 7" /><rect x="1" y="5" width="15" height="14" rx="2" />
+                              </svg>
+                              Join Meet
+                            </a>
+                          ) : isExpert ? (
+                            <button
+                              onClick={() => handleGenerateMeetLink(booking)}
+                              disabled={actionLoading === booking.id}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-warm-brown text-white text-xs font-semibold rounded-full hover:bg-warm-brown-dark transition-colors disabled:opacity-50"
+                            >
+                              {actionLoading === booking.id ? "Generating..." : "Generate Meet Link"}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-text-muted italic">Meet link pending</span>
+                          )}
                           <Link
                             href={`/booking/confirm?id=${booking.id}`}
                             className="text-xs font-medium text-warm-brown hover:underline"

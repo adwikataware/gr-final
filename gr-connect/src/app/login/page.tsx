@@ -22,7 +22,7 @@ export default function LoginPage() {
     setError("");
     setGoogleLoading(true);
     try {
-      await loginWithGoogle();
+      await loginWithGoogle(role);
       router.push("/dashboard");
     } catch {
       setError("Google sign-in failed. Please try again.");

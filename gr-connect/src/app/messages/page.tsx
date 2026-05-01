@@ -106,11 +106,12 @@ export default function MessagesPage() {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [rawMessages, setRawMessages] = useState<RawMessage[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sending, setSending] = useState(false);
-  // cache other user's public key per conversation
+  const [sendError, setSendError] = useState("");
   const [otherPublicKeys, setOtherPublicKeys] = useState<Record<string, string>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -134,20 +135,20 @@ export default function MessagesPage() {
     return unsub;
   }, [user]);
 
-  /* fetch other user's public key when conversation changes */
+  /* fetch other user's public key — always re-fetch on conversation change to get latest */
   useEffect(() => {
     if (!activeConvId || !user) return;
     const conv = conversations.find((c) => c.id === activeConvId);
     if (!conv) return;
     const otherId = conv.participants.find((p) => p !== user.uid);
-    if (!otherId || otherPublicKeys[otherId]) return;
+    if (!otherId) return;
     getDoc(doc(db, "users", otherId)).then((snap) => {
       const pk = snap.data()?.publicKey;
       if (pk) setOtherPublicKeys((prev) => ({ ...prev, [otherId]: pk }));
     });
-  }, [activeConvId, conversations, user]);
+  }, [activeConvId, user]);
 
-  /* load + decrypt messages */
+  /* load raw messages */
   useEffect(() => {
     if (!activeConvId || !user) return;
     const q = query(
@@ -155,34 +156,34 @@ export default function MessagesPage() {
       orderBy("createdAt", "asc"),
     );
     const unsub = onSnapshot(q, (snap) => {
-      const myPrivKey = getPrivateKey(user.uid);
-      const conv = conversations.find((c) => c.id === activeConvId);
-      const otherId = conv?.participants.find((p) => p !== user.uid) ?? "";
-      const otherPubKey = otherPublicKeys[otherId];
-
-      const decrypted: Message[] = snap.docs.map((d) => {
-        const raw = { id: d.id, ...d.data() } as RawMessage;
-        let text = "[encrypted]";
-
-        if (myPrivKey) {
-          if (raw.senderId === user.uid) {
-            // my own message — decrypt with secretbox (self-copy)
-            if (raw.cipherForSender) {
-              text = decryptForSelf(raw.cipherForSender, myPrivKey) ?? "[encrypted]";
-            }
-          } else {
-            // incoming message — decrypt with box (recipient copy)
-            if (raw.cipherForRecipient && otherPubKey) {
-              text = decryptMessage(raw.cipherForRecipient, otherPubKey, myPrivKey) ?? "[encrypted]";
-            }
-          }
-        }
-        return { id: raw.id, senderId: raw.senderId, text, createdAt: raw.createdAt };
-      });
-      setMessages(decrypted);
+      setRawMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as RawMessage)));
     });
     return unsub;
-  }, [activeConvId, user, otherPublicKeys, conversations]);
+  }, [activeConvId, user]);
+
+  /* decrypt messages — re-runs whenever raw messages or keys change */
+  useEffect(() => {
+    if (!user || !activeConvId) return;
+    const myPrivKey = getPrivateKey(user.uid);
+    const conv = conversations.find((c) => c.id === activeConvId);
+    const otherId = conv?.participants.find((p) => p !== user.uid) ?? "";
+    const otherPubKey = otherPublicKeys[otherId];
+
+    const decrypted: Message[] = rawMessages.map((raw) => {
+      let text = "[encrypted]";
+      if (myPrivKey) {
+        if (raw.senderId === user.uid) {
+          if (raw.cipherForSender)
+            text = decryptForSelf(raw.cipherForSender, myPrivKey) ?? "[encrypted]";
+        } else {
+          if (raw.cipherForRecipient && otherPubKey)
+            text = decryptMessage(raw.cipherForRecipient, otherPubKey, myPrivKey) ?? "[encrypted]";
+        }
+      }
+      return { id: raw.id, senderId: raw.senderId, text, createdAt: raw.createdAt };
+    });
+    setMessages(decrypted);
+  }, [rawMessages, otherPublicKeys, user, activeConvId, conversations]);
 
   /* auto-scroll */
   useEffect(() => {
@@ -191,14 +192,33 @@ export default function MessagesPage() {
 
   async function handleSend() {
     if (!inputText.trim() || !activeConvId || !user || sending) return;
+    setSendError("");
 
     const conv = conversations.find((c) => c.id === activeConvId);
     const otherId = conv?.participants.find((p) => p !== user.uid) ?? "";
-    const otherPubKey = otherPublicKeys[otherId];
+    let otherPubKey = otherPublicKeys[otherId];
     const myPrivKey = getPrivateKey(user.uid);
 
-    if (!otherPubKey || !myPrivKey) {
-      // fallback: keys not ready yet, skip silently
+    // If other user's public key isn't cached yet, try to fetch it now
+    if (!otherPubKey && otherId) {
+      try {
+        const snap = await getDoc(doc(db, "users", otherId));
+        const pk = snap.data()?.publicKey;
+        if (pk) {
+          setOtherPublicKeys((prev) => ({ ...prev, [otherId]: pk }));
+          otherPubKey = pk;
+        }
+      } catch {
+        // will fall through to error below
+      }
+    }
+
+    if (!otherPubKey) {
+      setSendError("Cannot send message — the other user's encryption key isn't available yet. They may need to log in once first.");
+      return;
+    }
+    if (!myPrivKey) {
+      setSendError("Your encryption key is missing. Try refreshing the page.");
       return;
     }
 
@@ -207,9 +227,7 @@ export default function MessagesPage() {
     setInputText("");
 
     try {
-      // encrypt for recipient (they decrypt with their private key + our public key)
       const cipherForRecipient = encryptMessage(text, otherPubKey, myPrivKey);
-      // encrypt for self (so we can read our own sent messages)
       const cipherForSender = encryptForSelf(text, myPrivKey);
 
       await addDoc(collection(db, "conversations", activeConvId, "messages"), {
@@ -222,6 +240,9 @@ export default function MessagesPage() {
         lastMessage: "🔒 Encrypted message",
         lastMessageAt: serverTimestamp(),
       });
+    } catch {
+      setSendError("Failed to send message. Please try again.");
+      setInputText(text); // restore input so user doesn't lose their message
     } finally {
       setSending(false);
     }
@@ -388,10 +409,18 @@ export default function MessagesPage() {
           </div>
 
           <div className="border-t border-clay-muted/30 bg-white p-4 shrink-0">
+            {sendError && (
+              <div className="mb-2 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 flex items-start gap-2">
+                <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                {sendError}
+              </div>
+            )}
             <div className="flex items-end gap-3">
               <textarea
                 value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
+                onChange={(e) => { setInputText(e.target.value); if (sendError) setSendError(""); }}
                 onKeyDown={handleKeyDown}
                 placeholder="Type a message..."
                 rows={1}
