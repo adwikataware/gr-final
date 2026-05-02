@@ -8,35 +8,42 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Question required" }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: "AI not configured" }, { status: 503 });
     }
 
-    const prompt = `You are an AI assistant helping users understand the research of ${expertName}, an expert in ${expertise?.join(", ")}. They have ${publications} publications.
-
-Answer the following question concisely and accurately based on their research domain. Keep the response under 120 words, conversational, and helpful.
-
-Question: ${question}`;
-
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 200, temperature: 0.7 },
-        }),
-      }
-    );
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI assistant helping users understand the research of ${expertName}, an expert in ${expertise?.join(", ") || "research"}. They have ${publications} publications. Answer questions clearly and helpfully in under 150 words.`,
+          },
+          {
+            role: "user",
+            content: question,
+          },
+        ],
+        max_tokens: 300,
+        temperature: 0.7,
+      }),
+    });
 
     if (!res.ok) {
-      throw new Error(`Gemini API error: ${res.status}`);
+      const errBody = await res.text();
+      console.error("Groq error:", errBody);
+      throw new Error(`Groq API error: ${res.status}`);
     }
 
     const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "No response generated.";
+    const text = data.choices?.[0]?.message?.content ?? "No response generated.";
 
     return NextResponse.json({ answer: text });
   } catch (err) {
