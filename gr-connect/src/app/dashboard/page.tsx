@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useAuth } from "@/lib/AuthContext";
+import { useAuth, UserProfile } from "@/lib/AuthContext";
 import {
   collection, query, where, orderBy, limit,
   onSnapshot, getDocs, doc, getDoc, setDoc, updateDoc,
@@ -40,7 +40,7 @@ interface Expert {
 /* ------------------------------------------------------------------ */
 /*  Profile Header with banner + avatar upload                        */
 /* ------------------------------------------------------------------ */
-function ProfileHeader({ user, profile, roleBadge }: { user: { uid: string; displayName?: string | null; photoURL?: string | null }; profile: Record<string, string[]> | null; roleBadge: string }) {
+function ProfileHeader({ user, profile, roleBadge }: { user: { uid: string; displayName?: string | null; photoURL?: string | null }; profile: UserProfile | null; roleBadge: string }) {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [bannerUrl, setBannerUrl] = useState<string>("");
@@ -96,10 +96,10 @@ function ProfileHeader({ user, profile, roleBadge }: { user: { uid: string; disp
     }
   }, [user?.uid]);
 
-  const displayName = (profile as { displayName?: string } | null)?.displayName || user?.displayName || "User";
-  const affiliation = (profile as { affiliation?: string } | null)?.affiliation || "";
-  const bio = (profile as { bio?: string } | null)?.bio || "";
-  const expertise: string[] = (profile as { expertise?: string[] } | null)?.expertise || [];
+  const displayName = profile?.displayName || user?.displayName || "User";
+  const affiliation = profile?.affiliation || "";
+  const bio = profile?.bio || "";
+  const expertise: string[] = profile?.expertise || [];
 
   return (
     <div className="relative rounded-2xl overflow-hidden border border-warm-brown/15 shadow-sm bg-surface-cream mb-10">
