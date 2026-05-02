@@ -799,95 +799,116 @@ function GRScoreCardModal({
         </button>
 
         {/* The card itself */}
-        <div ref={cardRef} style={{ background: "#FDFAF6", borderRadius: 20, overflow: "hidden", boxShadow: "0 8px 40px rgba(60,30,10,0.13)" }}>
+        <div ref={cardRef} style={{ background: "#FAF8F4", borderRadius: 20, overflow: "hidden", boxShadow: "0 12px 48px rgba(40,20,5,0.18)" }}>
 
-          {/* Header */}
-          <div style={{ background: "#3D2B1F", padding: "20px 24px 18px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {/* Top section — cream bg, centred score */}
+          <div style={{ background: "#FAF8F4", padding: "28px 24px 20px", textAlign: "center", borderBottom: "1px solid #EAE0D5" }}>
+
+            {/* Avatar + name row */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, textAlign: "left" }}>
               <img
                 src={expert.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(expert.name)}&background=8B5E3C&color=fff&size=120`}
                 alt={expert.name}
-                style={{ width: 52, height: 52, borderRadius: 10, objectFit: "cover", border: "2px solid rgba(245,208,138,0.3)" }}
+                style={{ width: 48, height: 48, borderRadius: 12, objectFit: "cover", border: "1.5px solid #D4C4B0", flexShrink: 0 }}
               />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontWeight: 700, fontSize: 15, color: "#FAF7F2", margin: 0, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{expert.name}</p>
-                <p style={{ fontSize: 11, color: "rgba(245,208,138,0.7)", margin: "3px 0 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{expert.affiliation || "Researcher"}</p>
-                <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", padding: "2px 9px", borderRadius: 20, background: "rgba(245,208,138,0.15)", color: "#F5D08A", border: "1px solid rgba(245,208,138,0.25)" }}>
+                <p style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 700, fontSize: 15, color: "#2A1A0E", margin: 0, lineHeight: 1.25, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{expert.name}</p>
+                <p style={{ fontSize: 11, color: "#7A6255", margin: "2px 0 5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{expert.affiliation || "Researcher"}</p>
+                <span style={{ display: "inline-block", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", padding: "2px 8px", borderRadius: 20, background: "#3D2B1F", color: "#E8C97A" }}>
                   {expert.tier}
                 </span>
               </div>
-              {/* Score badge */}
-              <div style={{ textAlign: "center", flexShrink: 0 }}>
-                <div style={{ width: 60, height: 60, borderRadius: "50%", border: "2.5px solid rgba(245,208,138,0.4)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(245,208,138,0.07)" }}>
-                  <span style={{ fontSize: 24, fontWeight: 800, color: "#F5D08A", lineHeight: 1 }}>{expert.gr_rating}</span>
-                  <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(245,208,138,0.6)", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 1 }}>GR</span>
+            </div>
+
+            {/* Centred GR score ring */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+              <div style={{ position: "relative", width: 100, height: 100 }}>
+                <svg width="100" height="100" viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#E8DECE" strokeWidth="5" />
+                  <motion.circle
+                    cx="50" cy="50" r="42" fill="none" stroke="#7A4F1E" strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 42}
+                    initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
+                    animate={{ strokeDashoffset: 2 * Math.PI * 42 * (1 - expert.gr_rating / 100) }}
+                    transition={{ duration: 1.6, ease: "easeOut" }}
+                  />
+                </svg>
+                <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                  <motion.span
+                    initial={{ opacity: 0, scale: 0.6 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.5, type: "spring", stiffness: 220, damping: 18 }}
+                    style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 30, fontWeight: 700, color: "#2A1A0E", lineHeight: 1 }}
+                  >{expert.gr_rating}</motion.span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#7A4F1E", letterSpacing: "0.14em", textTransform: "uppercase", marginTop: 2 }}>GR Score</span>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Stats row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid #EDE5DC", background: "#FAF7F2" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", background: "#F2EBE0", borderBottom: "1px solid #E0D4C4" }}>
             {[
               { label: "Citations", value: expert.total_citations?.toLocaleString() || "—" },
               { label: "H-Index",   value: expert.h_index ?? "—" },
               { label: "Papers",    value: expert.publications_count ?? "—" },
               { label: "i10",       value: expert.i10_index ?? "—" },
             ].map(({ label, value }, i) => (
-              <div key={label} style={{ padding: "12px 0", textAlign: "center", borderRight: i < 3 ? "1px solid #EDE5DC" : "none" }}>
-                <p style={{ fontSize: 14, fontWeight: 700, color: "#3D2B1F", margin: 0 }}>{value}</p>
-                <p style={{ fontSize: 9, color: "#9C8070", textTransform: "uppercase", letterSpacing: "0.06em", margin: "2px 0 0" }}>{label}</p>
+              <div key={label} style={{ padding: "11px 4px", textAlign: "center", borderRight: i < 3 ? "1px solid #E0D4C4" : "none" }}>
+                <p style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 13, fontWeight: 700, color: "#2A1A0E", margin: 0 }}>{value}</p>
+                <p style={{ fontSize: 8.5, color: "#8A7060", textTransform: "uppercase", letterSpacing: "0.07em", margin: "2px 0 0" }}>{label}</p>
               </div>
             ))}
           </div>
 
           {/* Pillar breakdown */}
-          <div style={{ padding: "16px 20px 14px" }}>
-            <p style={{ fontSize: 9, fontWeight: 700, color: "#9C8070", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 10px" }}>Score Breakdown</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+          <div style={{ padding: "16px 22px 12px", background: "#FAF8F4" }}>
+            <p style={{ fontSize: 8.5, fontWeight: 700, color: "#8A7060", textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 11px" }}>Score Breakdown</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {pillars.map(({ label, key, score }, i) => (
-                <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#A0692A", width: 18, textAlign: "center", flexShrink: 0, background: "rgba(160,105,42,0.1)", borderRadius: 4, padding: "1px 0" }}>{key}</span>
-                  <span style={{ fontSize: 10, color: "#5C4033", width: 88, flexShrink: 0 }}>{label}</span>
-                  <div style={{ flex: 1, height: 5, borderRadius: 3, background: "#EDE5DC", overflow: "hidden" }}>
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <span style={{ fontSize: 8, fontWeight: 800, color: "#7A4F1E", width: 20, textAlign: "center", flexShrink: 0, background: "rgba(122,79,30,0.1)", borderRadius: 4, padding: "2px 0", letterSpacing: "0.04em" }}>{key}</span>
+                  <span style={{ fontSize: 10.5, color: "#4A3020", width: 92, flexShrink: 0 }}>{label}</span>
+                  <div style={{ flex: 1, height: 4, borderRadius: 2, background: "#E8DECE", overflow: "hidden" }}>
                     <motion.div
-                      style={{ height: "100%", borderRadius: 3, background: "#A0692A" }}
+                      style={{ height: "100%", borderRadius: 2, background: "#7A4F1E" }}
                       initial={{ width: 0 }}
                       animate={{ width: `${Math.min(score ?? 0, 100)}%` }}
-                      transition={{ duration: 0.9, delay: 0.15 * i, ease: "easeOut" }}
+                      transition={{ duration: 0.85, delay: 0.12 * i, ease: "easeOut" }}
                     />
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#3D2B1F", width: 28, textAlign: "right", flexShrink: 0 }}>{score?.toFixed(0) ?? "—"}</span>
+                  <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 12, fontWeight: 700, color: "#2A1A0E", width: 28, textAlign: "right", flexShrink: 0 }}>{score != null && score > 0 ? score.toFixed(0) : "—"}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Impact percentile */}
-          <div style={{ margin: "0 20px 16px", padding: "10px 14px", background: "#F0EBE3", borderRadius: 10 }}>
+          <div style={{ margin: "0 22px 16px", padding: "10px 14px", background: "#EFE8DC", borderRadius: 10, border: "1px solid #E0D4C4" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-              <span style={{ fontSize: 9, fontWeight: 700, color: "#9C8070", textTransform: "uppercase", letterSpacing: "0.1em" }}>Impact Percentile</span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "#3D2B1F" }}>{impactPercentile}<span style={{ fontSize: 9, color: "#9C8070" }}>th</span></span>
+              <span style={{ fontSize: 8.5, fontWeight: 700, color: "#8A7060", textTransform: "uppercase", letterSpacing: "0.1em" }}>Impact Percentile</span>
+              <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 14, fontWeight: 700, color: "#2A1A0E" }}>{impactPercentile}<span style={{ fontSize: 9, color: "#8A7060", fontFamily: "inherit" }}>th</span></span>
             </div>
-            <div style={{ width: "100%", background: "#DDD4C8", height: 5, borderRadius: 3, overflow: "hidden" }}>
+            <div style={{ width: "100%", background: "#D8CCBC", height: 4, borderRadius: 2, overflow: "hidden" }}>
               <motion.div
-                style={{ height: "100%", borderRadius: 3, background: "#A0692A" }}
+                style={{ height: "100%", borderRadius: 2, background: "#7A4F1E" }}
                 initial={{ width: 0 }}
                 animate={{ width: `${impactPercentile}%` }}
-                transition={{ duration: 1.2, delay: 0.4, ease: "easeOut" }}
+                transition={{ duration: 1.2, delay: 0.5, ease: "easeOut" }}
               />
             </div>
           </div>
 
           {/* Footer */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px 16px", borderTop: "1px solid #EDE5DC" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 22px 16px", borderTop: "1px solid #EAE0D5" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 5, background: "#3D2B1F", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "#F5D08A", fontSize: 8, fontWeight: 800, letterSpacing: "0.05em" }}>GR</span>
+              <div style={{ width: 22, height: 22, borderRadius: 6, background: "#3D2B1F", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: "#E8C97A", fontSize: 7.5, fontWeight: 800, letterSpacing: "0.05em" }}>GR</span>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, color: "#3D2B1F" }}>GR Connect</span>
+              <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 11, fontWeight: 600, color: "#2A1A0E" }}>GR Connect</span>
             </div>
-            <span style={{ fontSize: 9, color: "#9C8070" }}>grconnect.app</span>
+            <span style={{ fontSize: 9, color: "#8A7060", letterSpacing: "0.04em" }}>grconnect.app</span>
           </div>
         </div>
 
