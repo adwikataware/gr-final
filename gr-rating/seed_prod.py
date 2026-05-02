@@ -79,11 +79,13 @@ async def main():
                 INSERT INTO raw_metrics (
                     researcher_id, publications, total_citations, h_index, i10_index,
                     fwci, citation_velocity, recency_index, topic_prominence_cagr,
+                    active_years, source,
                     sdg_count, sdg_mean_confidence, oa_percentage, societal_mentions,
                     total_patents, books_authored, books_edited, unique_funders, patent_links
                 ) VALUES (
                     :rid, :pubs, :cites, :h, :i10,
                     :fwci, :cit_vel, :rec_idx, :cagr,
+                    0, 'seed',
                     :sdg_c, :sdg_conf, :oa_pct, :soc,
                     :patents, :books_a, :books_e, :funders, :pat_links
                 )
