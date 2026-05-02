@@ -13,6 +13,9 @@ COPY alembic/ alembic/
 COPY alembic.ini .
 COPY scripts/ scripts/
 COPY startup.sh .
+COPY seed_prod.py .
+COPY fix_affiliations.py .
+COPY recalculate_gr.py .
 RUN dos2unix startup.sh && chmod +x startup.sh
 
 EXPOSE 8080
