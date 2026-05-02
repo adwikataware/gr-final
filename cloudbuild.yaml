@@ -77,6 +77,9 @@ steps:
       - NEXT_PUBLIC_FIREBASE_APP_ID=$_NEXT_PUBLIC_FIREBASE_APP_ID
       - --build-arg
       - NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=$_NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+      - --build-arg
+      - CACHE_BUST=$COMMIT_SHA
+      - --no-cache
       - ./gr-connect
     id: build-frontend
     waitFor: [iam-backend]
