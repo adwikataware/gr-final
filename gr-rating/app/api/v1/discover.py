@@ -147,6 +147,7 @@ async def get_researcher(
         "p2_score": round(gr.p2_score, 1),
         "p3_score": round(gr.p3_score, 1),
         "p4_score": round(gr.p4_score, 1),
+        "p5_score": round(gr.p5_score, 1),
     }
 
 

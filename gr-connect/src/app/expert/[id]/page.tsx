@@ -34,6 +34,7 @@ interface ExpertData {
   p2_score: number;
   p3_score: number;
   p4_score: number;
+  p5_score: number;
 }
 
 interface Publication {
@@ -57,24 +58,24 @@ const fadeUp = {
 };
 const stagger = { hidden: {}, visible: { transition: { staggerChildren: 0.08 } } };
 
-const SDG_META: Record<number, { label: string; color: string }> = {
-  1:  { label: "No Poverty",            color: "#E5243B" },
-  2:  { label: "Zero Hunger",           color: "#DDA63A" },
-  3:  { label: "Good Health",           color: "#4C9F38" },
-  4:  { label: "Quality Education",     color: "#C5192D" },
-  5:  { label: "Gender Equality",       color: "#FF3A21" },
-  6:  { label: "Clean Water",           color: "#26BDE2" },
-  7:  { label: "Clean Energy",          color: "#FCC30B" },
-  8:  { label: "Decent Work",           color: "#A21942" },
-  9:  { label: "Industry Innovation",   color: "#FD6925" },
-  10: { label: "Reduced Inequalities",  color: "#DD1367" },
-  11: { label: "Sustainable Cities",    color: "#FD9D24" },
-  12: { label: "Responsible Consumption", color: "#BF8B2E" },
-  13: { label: "Climate Action",        color: "#3F7E44" },
-  14: { label: "Life Below Water",      color: "#0A97D9" },
-  15: { label: "Life On Land",          color: "#56C02B" },
-  16: { label: "Peace & Justice",       color: "#00689D" },
-  17: { label: "Partnerships",          color: "#19486A" },
+const SDG_META: Record<number, { label: string; color: string; icon: string }> = {
+  1:  { label: "No Poverty",              color: "#E5243B", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-01.jpg" },
+  2:  { label: "Zero Hunger",             color: "#DDA63A", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-02.jpg" },
+  3:  { label: "Good Health",             color: "#4C9F38", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-03.jpg" },
+  4:  { label: "Quality Education",       color: "#C5192D", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-04.jpg" },
+  5:  { label: "Gender Equality",         color: "#FF3A21", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-05.jpg" },
+  6:  { label: "Clean Water",             color: "#26BDE2", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-06.jpg" },
+  7:  { label: "Clean Energy",            color: "#FCC30B", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-07.jpg" },
+  8:  { label: "Decent Work",             color: "#A21942", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-08.jpg" },
+  9:  { label: "Industry Innovation",     color: "#FD6925", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-09.jpg" },
+  10: { label: "Reduced Inequalities",    color: "#DD1367", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-10.jpg" },
+  11: { label: "Sustainable Cities",      color: "#FD9D24", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-11.jpg" },
+  12: { label: "Responsible Consumption", color: "#BF8B2E", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-12.jpg" },
+  13: { label: "Climate Action",          color: "#3F7E44", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-13.jpg" },
+  14: { label: "Life Below Water",        color: "#0A97D9", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-14.jpg" },
+  15: { label: "Life On Land",            color: "#56C02B", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-15.jpg" },
+  16: { label: "Peace & Justice",         color: "#00689D", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-16.jpg" },
+  17: { label: "Partnerships",            color: "#19486A", icon: "https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-17.jpg" },
 };
 
 function getDesignation(name: string, tierLabel: string, affiliation: string): string {
@@ -230,6 +231,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
   const [aiQuery, setAiQuery] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [showGRCard, setShowGRCard] = useState(false);
   const [messageSending, setMessageSending] = useState(false);
   const [msgError, setMsgError] = useState("");
 
@@ -368,7 +370,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                     <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
-                    {expert.tier_label}
+                    {expert.tier}
                   </span>
                 </div>
 
@@ -414,10 +416,14 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
           <motion.div ref={statsRef} variants={stagger} initial="hidden" animate="visible"
             className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
-            {/* GR Rating */}
+            {/* GR Rating — click to open score card */}
             <motion.div variants={fadeUp}
-              className="bg-surface-cream border border-warm-brown/20 p-6 flex flex-col items-center shadow-sm">
-              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-4">GR Rating</p>
+              onClick={() => setShowGRCard(true)}
+              className="bg-surface-cream border border-warm-brown/20 p-6 flex flex-col items-center shadow-sm cursor-pointer hover:border-warm-brown/50 hover:shadow-md transition-all group">
+              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-4 flex items-center gap-1.5">
+                GR Rating
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-warm-brown">↗</span>
+              </p>
               <div className="relative w-28 h-28 flex items-center justify-center">
                 <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
                   <circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" strokeWidth="5" className="text-warm-brown/10" />
@@ -435,8 +441,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                 </div>
               </div>
               <div className="mt-4 text-center">
-                <span className="text-xs font-bold text-warm-brown">{expert.tier} · {expert.tier_label}</span>
-                {expert.rank && <p className="text-[10px] text-text-muted mt-1">Rank #{expert.rank} globally</p>}
+                <span className="text-xs font-bold text-warm-brown">{expert.tier}</span>
               </div>
               <div className="mt-4 w-full">
                 <div className="flex justify-between text-[9px] text-text-muted uppercase tracking-wider mb-1">
@@ -450,6 +455,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                     transition={{ duration: 1.5, delay: 0.5, ease: "easeOut" }} />
                 </div>
               </div>
+              <p className="text-[9px] text-warm-brown/60 mt-3 group-hover:text-warm-brown transition-colors">Tap to view full score card</p>
             </motion.div>
 
             {/* Research Impact */}
@@ -517,19 +523,21 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                 </div>
               </div>
               <motion.div variants={stagger} initial="hidden" animate="visible"
-                className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                className="flex flex-wrap gap-3">
                 {activeSdgs.map((sdgId) => {
                   const meta = SDG_META[sdgId];
                   if (!meta) return null;
                   return (
                     <motion.div key={sdgId} variants={fadeUp}
-                      whileHover={{ y: -3, transition: { duration: 0.15 } }}
-                      className="aspect-square rounded-sm p-3 flex flex-col justify-between text-white shadow-sm cursor-default"
-                      style={{ backgroundColor: meta.color }}>
-                      <span className="text-[10px] font-serif italic opacity-60">{String(sdgId).padStart(2, "0")}</span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider leading-tight mt-auto">
-                        {meta.label.split(" ").slice(0, 2).join("\n")}
-                      </span>
+                      whileHover={{ scale: 1.08, y: -2, transition: { duration: 0.15 } }}
+                      title={`SDG ${sdgId}: ${meta.label}`}
+                      className="w-14 h-14 rounded-xl overflow-hidden shadow-sm border border-warm-brown/10 cursor-default shrink-0">
+                      <img
+                        src={meta.icon}
+                        alt={`SDG ${sdgId}: ${meta.label}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
                     </motion.div>
                   );
                 })}
@@ -692,6 +700,224 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
           </div>
         </div>
       </div>
+
+      {/* ── GR SCORE CARD MODAL ── */}
+      <AnimatePresence>
+        {showGRCard && (
+          <GRScoreCardModal expert={expert} impactPercentile={impactPercentile} onClose={() => setShowGRCard(false)} />
+        )}
+      </AnimatePresence>
     </main>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* GR Score Card Modal                                                  */
+/* ------------------------------------------------------------------ */
+function GRScoreCardModal({
+  expert, impactPercentile, onClose,
+}: {
+  expert: ExpertData;
+  impactPercentile: number;
+  onClose: () => void;
+}) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const circumference = 2 * Math.PI * 52;
+  const ratingOffset = circumference - (expert.gr_rating / 100) * circumference;
+
+  const tierColor: Record<string, string> = {
+    "GR-A": "#A0692A", "GR-B": "#8B5E3C", "GR-C": "#9C7B5A", "GR-D": "#9C7B5A", "GR-E": "#B8956A",
+  };
+  const color = tierColor[expert.tier] || "#8B5E3C";
+
+  function copyLink() {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function downloadCard() {
+    if (!cardRef.current || downloading) return;
+    setDownloading(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(cardRef.current, {
+        scale: 2, useCORS: true, backgroundColor: "#FAF7F2",
+      });
+      const link = document.createElement("a");
+      link.download = `GR-Score-${expert.name.replace(/\s+/g, "-")}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch { /* silent */ }
+    setDownloading(false);
+  }
+
+  function shareNative() {
+    if (navigator.share) {
+      navigator.share({
+        title: `${expert.name} — GR Score ${expert.gr_rating}`,
+        text: `Check out ${expert.name}'s GR Score of ${expert.gr_rating} on GR Connect!`,
+        url: window.location.href,
+      });
+    } else {
+      copyLink();
+    }
+  }
+
+  const pillars = [
+    { label: "Core Research",  key: "P1", score: expert.p1_score },
+    { label: "Performance",    key: "P2", score: expert.p2_score },
+    { label: "Societal Impact",key: "P3", score: expert.p3_score },
+    { label: "Innovation",     key: "P4", score: expert.p4_score },
+    { label: "Recognition",    key: "P5", score: expert.p5_score },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9, y: 32 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 16 }}
+        transition={{ type: "spring", stiffness: 320, damping: 30 }}
+        className="relative w-full max-w-sm z-10"
+      >
+        {/* Close button */}
+        <button onClick={onClose}
+          className="absolute -top-3 -right-3 z-20 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-charcoal hover:bg-cream-100 transition-colors">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+
+        {/* The card itself */}
+        <div ref={cardRef} style={{ background: "#FDFAF6", borderRadius: 20, overflow: "hidden", boxShadow: "0 8px 40px rgba(60,30,10,0.13)" }}>
+
+          {/* Header */}
+          <div style={{ background: "#3D2B1F", padding: "20px 24px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <img
+                src={expert.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(expert.name)}&background=8B5E3C&color=fff&size=120`}
+                alt={expert.name}
+                style={{ width: 52, height: 52, borderRadius: 10, objectFit: "cover", border: "2px solid rgba(245,208,138,0.3)" }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontWeight: 700, fontSize: 15, color: "#FAF7F2", margin: 0, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{expert.name}</p>
+                <p style={{ fontSize: 11, color: "rgba(245,208,138,0.7)", margin: "3px 0 6px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{expert.affiliation || "Researcher"}</p>
+                <span style={{ display: "inline-block", fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", padding: "2px 9px", borderRadius: 20, background: "rgba(245,208,138,0.15)", color: "#F5D08A", border: "1px solid rgba(245,208,138,0.25)" }}>
+                  {expert.tier}
+                </span>
+              </div>
+              {/* Score badge */}
+              <div style={{ textAlign: "center", flexShrink: 0 }}>
+                <div style={{ width: 60, height: 60, borderRadius: "50%", border: "2.5px solid rgba(245,208,138,0.4)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "rgba(245,208,138,0.07)" }}>
+                  <span style={{ fontSize: 24, fontWeight: 800, color: "#F5D08A", lineHeight: 1 }}>{expert.gr_rating}</span>
+                  <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(245,208,138,0.6)", letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 1 }}>GR</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", borderBottom: "1px solid #EDE5DC", background: "#FAF7F2" }}>
+            {[
+              { label: "Citations", value: expert.total_citations?.toLocaleString() || "—" },
+              { label: "H-Index",   value: expert.h_index ?? "—" },
+              { label: "Papers",    value: expert.publications_count ?? "—" },
+              { label: "i10",       value: expert.i10_index ?? "—" },
+            ].map(({ label, value }, i) => (
+              <div key={label} style={{ padding: "12px 0", textAlign: "center", borderRight: i < 3 ? "1px solid #EDE5DC" : "none" }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: "#3D2B1F", margin: 0 }}>{value}</p>
+                <p style={{ fontSize: 9, color: "#9C8070", textTransform: "uppercase", letterSpacing: "0.06em", margin: "2px 0 0" }}>{label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Pillar breakdown */}
+          <div style={{ padding: "16px 20px 14px" }}>
+            <p style={{ fontSize: 9, fontWeight: 700, color: "#9C8070", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 10px" }}>Score Breakdown</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {pillars.map(({ label, key, score }, i) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#A0692A", width: 18, textAlign: "center", flexShrink: 0, background: "rgba(160,105,42,0.1)", borderRadius: 4, padding: "1px 0" }}>{key}</span>
+                  <span style={{ fontSize: 10, color: "#5C4033", width: 88, flexShrink: 0 }}>{label}</span>
+                  <div style={{ flex: 1, height: 5, borderRadius: 3, background: "#EDE5DC", overflow: "hidden" }}>
+                    <motion.div
+                      style={{ height: "100%", borderRadius: 3, background: "#A0692A" }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(score ?? 0, 100)}%` }}
+                      transition={{ duration: 0.9, delay: 0.15 * i, ease: "easeOut" }}
+                    />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#3D2B1F", width: 28, textAlign: "right", flexShrink: 0 }}>{score?.toFixed(0) ?? "—"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Impact percentile */}
+          <div style={{ margin: "0 20px 16px", padding: "10px 14px", background: "#F0EBE3", borderRadius: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
+              <span style={{ fontSize: 9, fontWeight: 700, color: "#9C8070", textTransform: "uppercase", letterSpacing: "0.1em" }}>Impact Percentile</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#3D2B1F" }}>{impactPercentile}<span style={{ fontSize: 9, color: "#9C8070" }}>th</span></span>
+            </div>
+            <div style={{ width: "100%", background: "#DDD4C8", height: 5, borderRadius: 3, overflow: "hidden" }}>
+              <motion.div
+                style={{ height: "100%", borderRadius: 3, background: "#A0692A" }}
+                initial={{ width: 0 }}
+                animate={{ width: `${impactPercentile}%` }}
+                transition={{ duration: 1.2, delay: 0.4, ease: "easeOut" }}
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 20px 16px", borderTop: "1px solid #EDE5DC" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 5, background: "#3D2B1F", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: "#F5D08A", fontSize: 8, fontWeight: 800, letterSpacing: "0.05em" }}>GR</span>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#3D2B1F" }}>GR Connect</span>
+            </div>
+            <span style={{ fontSize: 9, color: "#9C8070" }}>grconnect.app</span>
+          </div>
+        </div>
+
+        {/* Share actions */}
+        <div className="mt-4 flex items-center gap-2">
+          <button onClick={downloadCard} disabled={downloading}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-[#3D2B1F] text-white rounded-xl hover:bg-[#2D1F15] transition-colors disabled:opacity-50">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            {downloading ? "Saving..." : "Save Image"}
+          </button>
+          <button onClick={shareNative}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-[#A0692A] text-white rounded-xl hover:bg-[#8B5A24] transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+            {copied ? "Link Copied!" : "Share"}
+          </button>
+          <button onClick={copyLink}
+            className="py-2.5 px-4 text-sm font-semibold border border-[#DDD4C8] text-[#3D2B1F] rounded-xl hover:bg-[#F0EBE3] transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+            </svg>
+          </button>
+        </div>
+      </motion.div>
+    </div>
   );
 }
