@@ -13,15 +13,10 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 engine = create_async_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-SEED_OPENALEX_IDS = {
-    "A5017173320",  # Dr. Sushilkumar Salve
-    "A5080409343",  # Dr. Gitanjali Shinde
-    "A5023928504",  # Dr. Jagdish C. Bansal
-    "A5110015262",  # Dr. Zhanhu Guo
-    "A5092559347",  # Dr. Ketan Kotecha
-    "A5063648631",  # Dr. Ganapati Yadav
-    "A5093554874",  # Dr. Dattatray Takale
-    "A5000975435",  # Nilanjan Dey
+SEED_NAMES = {
+    "sushilkumar salve", "gitanjali shinde", "jagdish c. bansal", "jagdish bansal",
+    "zhanhu guo", "ketan kotecha", "ganapati yadav", "ganapati d. yadav",
+    "dattatray takale", "nilanjan dey", "parikshit mahalle", "vijay singh rathore",
 }
 
 
@@ -33,7 +28,8 @@ async def main():
 
         to_delete = [
             (rid, oid) for rid, oid, name in rows
-            if oid not in SEED_OPENALEX_IDS and not oid.startswith("g_")
+            if name.lower().replace("dr. ", "").replace("dr ", "").strip() not in SEED_NAMES
+            and not oid.startswith("g_")
         ]
 
         if not to_delete:
