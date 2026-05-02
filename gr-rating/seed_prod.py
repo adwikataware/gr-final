@@ -103,8 +103,33 @@ async def main():
                    "patents": patents, "books_a": books_a, "books_e": books_e,
                    "funders": funders, "pat_links": pat_links})
 
+        # Re-insert Google-onboarded users that may have been wiped
+        await s.execute(text("""
+            INSERT INTO researchers (id, name, affiliation, openalex_id, google_scholar_id, bio, photo_url, topics, sdg_ids)
+            VALUES (:id, :name, :affiliation, :openalex_id, :gsid, :bio, :photo_url, :topics, :sdg_ids)
+            ON CONFLICT (id) DO UPDATE SET
+                name=EXCLUDED.name, affiliation=EXCLUDED.affiliation,
+                bio=EXCLUDED.bio, photo_url=EXCLUDED.photo_url,
+                topics=EXCLUDED.topics, sdg_ids=EXCLUDED.sdg_ids
+        """), {
+            "id": "f1e34052-170c-4b28-b1b3-70d8f26a6906",
+            "name": "Soham Takale",
+            "affiliation": "mit wpu",
+            "openalex_id": "google_8eKoddqh8adpXT5XjSTPSxBARWF2",
+            "gsid": "8eKoddqh8adpXT5XjSTPSxBARWF2",
+            "bio": "heyyy",
+            "photo_url": "https://ui-avatars.com/api/?name=Soham+Takale&background=8B5E3C&color=fff&size=200",
+            "topics": '["Climate Science", "Biotechnology"]',
+            "sdg_ids": "",
+        })
+        await s.execute(text("""
+            INSERT INTO gr_ratings (researcher_id, gr_rating, tier, p1_score, p2_score, p3_score, p4_score, p5_score)
+            VALUES ('f1e34052-170c-4b28-b1b3-70d8f26a6906', 10.0, 'GR-E', 10.0, 10.0, 10.0, 50.0, 50.0)
+            ON CONFLICT (researcher_id) DO NOTHING
+        """))
+
         await s.commit()
-        print(f"Seeded {len(RESEARCHERS)} researchers + raw_metrics. recalculate_gr will now produce exact local scores.")
+        print(f"Seeded {len(RESEARCHERS)} researchers + raw_metrics + Google users. recalculate_gr will now produce exact local scores.")
 
 
 asyncio.run(main())
