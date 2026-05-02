@@ -429,16 +429,8 @@ export default function MyBookingsPage() {
                               </svg>
                               Join Meet
                             </a>
-                          ) : isExpert ? (
-                            <button
-                              onClick={() => handleGenerateMeetLink(booking)}
-                              disabled={actionLoading === booking.id}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-warm-brown text-white text-xs font-semibold rounded-full hover:bg-warm-brown-dark transition-colors disabled:opacity-50"
-                            >
-                              {actionLoading === booking.id ? "Generating..." : "Generate Meet Link"}
-                            </button>
                           ) : (
-                            <span className="text-xs text-text-muted italic">Meet link pending</span>
+                            <span className="text-xs text-text-muted italic">Meet link being generated...</span>
                           )}
                           <Link
                             href={`/booking/confirm?id=${booking.id}`}
