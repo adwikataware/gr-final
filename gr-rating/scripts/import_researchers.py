@@ -141,24 +141,37 @@ SDG_KEYWORD_MAP = {
 }
 
 
-def compute_gr_rating(works_count: int, cited_by_count: int, h_index: int) -> tuple[float, str]:
-    # Normalise each metric to 0-100
-    pub_score = min(works_count / 500 * 100, 100)
-    cite_score = min(cited_by_count / 20000 * 100, 100)
-    h_score = min(h_index / 80 * 100, 100)
-    gr = round(pub_score * 0.25 + cite_score * 0.45 + h_score * 0.30, 1)
+def S(x: float, c: float) -> float:
+    x = max(x, 0)
+    return 100 * x / (x + c)
 
-    if gr >= 80:
-        tier = "GR-A"
-    elif gr >= 60:
-        tier = "GR-B"
-    elif gr >= 40:
-        tier = "GR-C"
-    elif gr >= 20:
-        tier = "GR-D"
+
+def compute_gr_rating(works_count: int, cited_by_count: int, h_index: int,
+                      i10_index: int = 0, fwci: float = 0.0,
+                      citation_velocity: float = 0.0, recency_index: float = 0.0) -> tuple[float, str, float, float, float, float, float]:
+    p1 = round(S(h_index, 3) * 0.30 + S(cited_by_count, 180) * 0.25 + S(works_count, 8) * 0.25 + S(i10_index, 3) * 0.20, 1)
+
+    if fwci > 0 or citation_velocity > 0 or recency_index > 0:
+        p2_fwci = S(fwci, 0.3)              if fwci > 0              else 50.0
+        p2_vel  = S(citation_velocity, 12)  if citation_velocity > 0 else 50.0
+        p2_rec  = S(recency_index, 0.3)     if recency_index > 0     else 50.0
+        p2 = round(p2_fwci * 0.35 + p2_vel * 0.25 + p2_rec * 0.20 + 50.0 * 0.20, 1)
     else:
-        tier = "GR-E"
-    return gr, tier
+        p2 = 50.0
+
+    p3 = 50.0
+    p4 = 50.0
+    p5 = 50.0
+
+    gr = round(p1 * 0.25 + p2 * 0.30 + p3 * 0.15 + p4 * 0.20 + p5 * 0.10, 1)
+
+    if gr >= 85:   tier = "GR-A"
+    elif gr >= 70: tier = "GR-B"
+    elif gr >= 50: tier = "GR-C"
+    elif gr >= 30: tier = "GR-D"
+    else:          tier = "GR-E"
+
+    return gr, tier, p1, p2, p3, p4, p5
 
 
 def extract_sdgs(data: dict, topics: list[str]) -> list[int]:
@@ -246,7 +259,19 @@ async def run():
 
                 photo_url = f"https://ui-avatars.com/api/?name={display_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
 
-                gr_rating, tier = compute_gr_rating(works_count, cited_by_count, h_index)
+                stats = author.get("summary_stats", {})
+                i10_index = stats.get("i10_index", 0)
+                fwci = stats.get("2yr_mean_citedness", 0.0) or 0.0
+                cited_by_2yr = stats.get("2yr_cited_by_count", 0) or 0
+                citation_velocity = cited_by_2yr / 2.0 if cited_by_2yr > 0 else 0.0
+                counts_by_year = author.get("counts_by_year", [])
+                recent_works = sum(y.get("works_count", 0) for y in counts_by_year if y.get("year", 0) >= 2020)
+                recency_index = (recent_works / works_count) if works_count > 0 else 0.0
+
+                gr_rating, tier, p1, p2, p3, p4, p5 = compute_gr_rating(
+                    works_count, cited_by_count, h_index, i10_index,
+                    fwci, citation_velocity, recency_index
+                )
 
                 print(f"  Found: {display_name} | {affiliation}")
                 print(f"  Works: {works_count} | Citations: {cited_by_count} | H-index: {h_index}")
@@ -278,18 +303,14 @@ async def run():
                     select(GRRating).where(GRRating.researcher_id == r.id)
                 )).scalar_one_or_none()
 
-                p1 = min(works_count / 500 * 100, 100)
-                p2 = min(cited_by_count / 20000 * 100, 100)
-                p3 = min(h_index / 80 * 100, 100)
-
                 if gr_row:
                     gr_row.gr_rating = gr_rating
                     gr_row.tier = tier
                     gr_row.p1_score = p1
                     gr_row.p2_score = p2
                     gr_row.p3_score = p3
-                    gr_row.p4_score = 50.0
-                    gr_row.p5_score = 50.0
+                    gr_row.p4_score = p4
+                    gr_row.p5_score = p5
                 else:
                     gr_row = GRRating(
                         researcher_id=r.id,
@@ -298,8 +319,8 @@ async def run():
                         p1_score=p1,
                         p2_score=p2,
                         p3_score=p3,
-                        p4_score=50.0,
-                        p5_score=50.0,
+                        p4_score=p4,
+                        p5_score=p5,
                     )
                     session.add(gr_row)
 
