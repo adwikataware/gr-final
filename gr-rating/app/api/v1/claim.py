@@ -167,17 +167,57 @@ async def orcid_lookup(body: OrcidLookupRequest):
     }
 
 
-def compute_gr(works_count: int, cited_by_count: int, h_index: int):
-    pub_score = min(works_count / 500 * 100, 100)
-    cite_score = min(cited_by_count / 20000 * 100, 100)
-    h_score = min(h_index / 80 * 100, 100)
-    gr = round(pub_score * 0.25 + cite_score * 0.45 + h_score * 0.30, 1)
-    if gr >= 80: tier = "GR-A"
-    elif gr >= 60: tier = "GR-B"
-    elif gr >= 40: tier = "GR-C"
-    elif gr >= 20: tier = "GR-D"
-    else: tier = "GR-E"
-    return gr, tier
+def S(x: float, c: float) -> float:
+    """Saturation function: S(x) = 100 * x / (x + c)"""
+    x = max(x, 0)
+    return 100 * x / (x + c)
+
+
+def compute_gr(works_count: int, cited_by_count: int, h_index: int, i10_index: int = 0,
+               total_patents: int = 0, books_authored: int = 0, books_edited: int = 0,
+               unique_funders: int = 0, patent_links: int = 0,
+               sdg_count: int = 0, sdg_mean_confidence: float = 0.0,
+               oa_percentage: float = 0.0, societal_mentions: int = 0):
+
+    # P1 — Core Fundamental Research (25%)
+    p1_h       = S(h_index,       c=0.5)
+    p1_cites   = S(cited_by_count, c=180)
+    p1_pubs    = S(works_count,    c=8)
+    p1_i10     = S(i10_index,      c=0.5)
+    p1 = round(p1_h * 0.30 + p1_cites * 0.25 + p1_pubs * 0.25 + p1_i10 * 0.20, 1)
+
+    # P2 — Real-Time Performance (30%)
+    # FWCI, citation velocity, recency, topic CAGR not available from OpenAlex basic pull
+    # Default to neutral 50 until we enrich data
+    p2 = 50.0
+
+    # P3 — Sustainability & Societal Impact (15%)
+    p3_sdg_cov  = S(sdg_count,            c=1.5)
+    p3_sdg_conf = S(sdg_mean_confidence,  c=0.18)
+    p3_oa       = S(oa_percentage,        c=10)
+    p3_soc      = S(societal_mentions,    c=4)
+    p3 = round(p3_sdg_cov * 0.25 + p3_sdg_conf * 0.25 + p3_oa * 0.25 + p3_soc * 0.25, 1)
+
+    # P4 — Innovation & Economic Assets (20%)
+    books_score = books_authored + 0.5 * books_edited
+    p4_patents  = S(total_patents,    c=2.5)
+    p4_books    = S(books_score,      c=2)
+    p4_funders  = S(unique_funders,   c=1.2)
+    p4_links    = S(patent_links,     c=2)
+    p4 = round(p4_patents * 0.30 + p4_books * 0.25 + p4_funders * 0.25 + p4_links * 0.20, 1)
+
+    # P5 — Community & Peer Recognition (10%) — neutral 50 until platform data builds
+    p5 = 50.0
+
+    gr = round(p1 * 0.25 + p2 * 0.30 + p3 * 0.15 + p4 * 0.20 + p5 * 0.10, 1)
+
+    if gr >= 85:   tier = "GR-A"
+    elif gr >= 70: tier = "GR-B"
+    elif gr >= 50: tier = "GR-C"
+    elif gr >= 30: tier = "GR-D"
+    else:          tier = "GR-E"
+
+    return gr, tier, round(p1, 1), round(p2, 1), round(p3, 1), round(p4, 1), round(p5, 1)
 
 
 def extract_sdgs(data: dict, topics: list[str]) -> list[int]:
@@ -250,7 +290,11 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
     bio = f"Researcher with {works_count:,} publications and {cited_by_count:,} citations."
     clean_name = re.sub(r'^(Dr\.?|Prof\.?|Mr\.?|Mrs\.?|Ms\.?)\s+', '', display_name)
     photo_url = f"https://ui-avatars.com/api/?name={clean_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
-    gr_rating, tier = compute_gr(works_count, cited_by_count, h_index)
+    gr_rating, tier, p1, p2, p3, p4, p5 = compute_gr(
+        works_count, cited_by_count, h_index,
+        i10_index=author.get("summary_stats", {}).get("i10_index", 0),
+        sdg_count=len(sdg_ids),
+    )
 
     # ----------------------------------------------------------------
     # Secure claim logic:
@@ -287,10 +331,6 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
     await session.flush()
 
     # Upsert GR rating
-    p1 = min(works_count / 500 * 100, 100)
-    p2 = min(cited_by_count / 20000 * 100, 100)
-    p3 = min(h_index / 80 * 100, 100)
-
     gr_row = (await session.execute(
         select(GRRating).where(GRRating.researcher_id == r.id)
     )).scalar_one_or_none()
@@ -301,8 +341,8 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
         gr_row.p1_score = p1
         gr_row.p2_score = p2
         gr_row.p3_score = p3
-        gr_row.p4_score = 50.0
-        gr_row.p5_score = 50.0
+        gr_row.p4_score = p4
+        gr_row.p5_score = p5
     else:
         gr_row = GRRating(
             researcher_id=r.id,
@@ -311,8 +351,8 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
             p1_score=p1,
             p2_score=p2,
             p3_score=p3,
-            p4_score=50.0,
-            p5_score=50.0,
+            p4_score=p4,
+            p5_score=p5,
         )
         session.add(gr_row)
 
