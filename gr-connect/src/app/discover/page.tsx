@@ -72,10 +72,8 @@ const SDG_META_DISCOVER: Record<number, { label: string; color: string; short: s
 /* ------------------------------------------------------------------ */
 const PAGE_SIZE = 6;
 
-function tierBadgeClass(tierLabel: string) {
-  return tierLabel === "Elite"
-    ? "bg-charcoal text-white"
-    : "bg-accent-tan/60 text-charcoal";
+function tierBadgeClass() {
+  return "bg-[#3D2B1F] text-[#F5D08A]";
 }
 
 /* ------------------------------------------------------------------ */
@@ -138,7 +136,7 @@ export default function DiscoverPage() {
     }
 
     if (selectedTier !== "All") {
-      list = list.filter((e) => e.tier_label === selectedTier);
+      list = list.filter((e) => e.tier === selectedTier);
     }
 
     if (minRating > 0) {
@@ -220,9 +218,11 @@ export default function DiscoverPage() {
               <div className="space-y-1">
                 {[
                   { label: "All Tiers", value: "All" },
-                  { label: "Elite", value: "Elite", dot: "#1a1a1a" },
-                  { label: "Premier", value: "Premier", dot: "#8B5E3C" },
-                  { label: "Verified", value: "Verified", dot: "#9d8461" },
+                  { label: "GR-A", value: "GR-A", dot: "#3D2B1F" },
+                  { label: "GR-B", value: "GR-B", dot: "#7A4F1E" },
+                  { label: "GR-C", value: "GR-C", dot: "#9d8461" },
+                  { label: "GR-D", value: "GR-D", dot: "#b5a080" },
+                  { label: "GR-E", value: "GR-E", dot: "#ccc" },
                 ].map(({ label, value, dot }) => (
                   <button key={value} onClick={() => { setSelectedTier(value); setVisibleCount(PAGE_SIZE); }}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${selectedTier === value ? "bg-charcoal text-white" : "text-charcoal hover:bg-warm-brown/8"}`}>
@@ -347,14 +347,21 @@ export default function DiscoverPage() {
                   className="hover-card-lift group bg-surface-cream rounded-2xl border border-clay-muted/40 p-6"
                 >
                   <div className="flex gap-6">
-                    {/* Avatar */}
+                    {/* Avatar with GR badge */}
                     <Link href={`/expert/${expert.id}`} className="shrink-0">
-                      <div className="w-28 h-28 rounded-xl overflow-hidden bg-cream-200">
-                        <img
-                          src={expert.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(expert.name)}&background=8B5E3C&color=fff&size=200`}
-                          alt={expert.name}
-                          className="w-full h-full object-cover"
-                        />
+                      <div className="relative w-28" style={{ paddingBottom: "1.25rem" }}>
+                        <div className="w-28 h-28 rounded-xl overflow-hidden bg-cream-200">
+                          <img
+                            src={expert.photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(expert.name)}&background=8B5E3C&color=fff&size=200`}
+                            alt={expert.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        {/* GR Rating badge */}
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-[#3D2B1F] text-[#F5D08A] px-2.5 py-1 rounded-full shadow-md border border-[#F5D08A]/20 whitespace-nowrap">
+                          <span className="text-[9px] font-bold uppercase tracking-widest opacity-80">GR</span>
+                          <span className="text-sm font-black leading-none">{expert.gr_rating}</span>
+                        </div>
                       </div>
                     </Link>
 
@@ -371,14 +378,11 @@ export default function DiscoverPage() {
                           <p className="text-sm text-text-muted mt-0.5">{expert.affiliation}</p>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full ${tierBadgeClass(expert.tier_label)}`}>
-                            {expert.tier_label} · {expert.tier}
+                        <Link href={`/expert/${expert.id}`} className="shrink-0">
+                          <span className={`inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full ${tierBadgeClass()}`}>
+                            {expert.tier}
                           </span>
-                          <span className="inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full bg-warm-brown/10 text-warm-brown">
-                            GR {expert.gr_rating}
-                          </span>
-                        </div>
+                        </Link>
                       </div>
 
                       {/* Bio */}
@@ -417,7 +421,6 @@ export default function DiscoverPage() {
                       {/* Bottom row */}
                       <div className="flex items-center justify-between mt-4 pt-3 border-t border-clay-muted/30">
                         <div className="flex items-center gap-2 text-xs text-text-muted">
-                          {expert.rank && <span className="font-medium text-charcoal">Rank #{expert.rank}</span>}
                           {expert.orcid && (
                             <a
                               href={`https://orcid.org/${expert.orcid}`}
