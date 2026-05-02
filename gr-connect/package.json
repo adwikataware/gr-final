@@ -17,6 +17,7 @@
     "@types/react": "^19.2.14",
     "firebase": "^12.12.1",
     "framer-motion": "^12.35.0",
+    "html2canvas": "^1.4.1",
     "next": "^16.1.6",
     "postcss": "^8.5.8",
     "react": "^19.2.4",
@@ -25,5 +26,8 @@
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1",
     "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/html2canvas": "^0.5.35"
   }
 }

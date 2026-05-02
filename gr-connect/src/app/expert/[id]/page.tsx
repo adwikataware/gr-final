@@ -745,8 +745,8 @@ function GRScoreCardModal({
     try {
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(cardRef.current, {
-        scale: 2, useCORS: true, backgroundColor: "#FAF7F2",
-      });
+        useCORS: true, backgroundColor: "#FAF8F4",
+      } as Parameters<typeof html2canvas>[1]);
       const link = document.createElement("a");
       link.download = `GR-Score-${expert.name.replace(/\s+/g, "-")}.png`;
       link.href = canvas.toDataURL("image/png");
