@@ -801,8 +801,19 @@ function GRScoreCardModal({
         {/* The card itself */}
         <div ref={cardRef} style={{ background: "#FAF8F4", borderRadius: 20, overflow: "hidden", boxShadow: "0 12px 48px rgba(40,20,5,0.18)" }}>
 
+          {/* Brand bar at very top */}
+          <div style={{ background: "#3D2B1F", padding: "9px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{ width: 20, height: 20, borderRadius: 5, background: "#E8C97A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: "#3D2B1F", fontSize: 7.5, fontWeight: 900, letterSpacing: "0.05em" }}>GR</span>
+              </div>
+              <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 12, fontWeight: 700, color: "#FAF8F4", letterSpacing: "0.02em" }}>GR Connect</span>
+            </div>
+            <span style={{ fontSize: 9, color: "rgba(232,201,122,0.6)", letterSpacing: "0.06em" }}>grconnect.app</span>
+          </div>
+
           {/* Top section — cream bg, centred score */}
-          <div style={{ background: "#FAF8F4", padding: "28px 24px 20px", textAlign: "center", borderBottom: "1px solid #EAE0D5" }}>
+          <div style={{ background: "#FAF8F4", padding: "22px 24px 20px", textAlign: "center", borderBottom: "1px solid #EAE0D5" }}>
 
             {/* Avatar + name row */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, textAlign: "left" }}>
@@ -900,16 +911,8 @@ function GRScoreCardModal({
             </div>
           </div>
 
-          {/* Footer */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 22px 16px", borderTop: "1px solid #EAE0D5" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, background: "#3D2B1F", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "#E8C97A", fontSize: 7.5, fontWeight: 800, letterSpacing: "0.05em" }}>GR</span>
-              </div>
-              <span style={{ fontFamily: "Georgia, 'Times New Roman', serif", fontSize: 11, fontWeight: 600, color: "#2A1A0E" }}>GR Connect</span>
-            </div>
-            <span style={{ fontSize: 9, color: "#8A7060", letterSpacing: "0.04em" }}>grconnect.app</span>
-          </div>
+          {/* Bottom padding */}
+          <div style={{ height: 16 }} />
         </div>
 
         {/* Share actions */}
