@@ -1,0 +1,88 @@
+"""
+Wipes researchers/gr_ratings/raw_metrics and re-seeds from local exact data.
+Run once against prod Cloud SQL via Cloud Run job or locally with prod DATABASE_URL.
+"""
+import asyncio, os
+from dotenv import load_dotenv
+load_dotenv()
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
+
+DATABASE_URL = os.environ["DATABASE_URL"]
+engine = create_async_engine(DATABASE_URL, echo=False)
+SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+RESEARCHERS = [
+    ("0f0fec79-4927-453e-9824-dcaf78277bdc", "Dr. Sushilkumar Salve", "VIT, Pune", "A5017173320", None, None, None, "Researcher with 3 publications and 31 citations.", "https://ui-avatars.com/api/?name=Sushilkumar+S.+Salve&background=8B5E3C&color=fff&size=200", '["Biometric Identification and Security", "Face and Expression Recognition", "User Authentication and Security Systems", "Image and Video Stabilization"]', None),
+    ("ca909144-c5db-41f4-9e7d-b54fdcbd65db", "Dr. Gitanjali Shinde", "VIT, Pune", "A5080409343", None, None, None, "Researcher with 214 publications and 1,128 citations.", "https://ui-avatars.com/api/?name=Gitanjali+R.+Shinde&background=8B5E3C&color=fff&size=200", '["IoT and Edge/Fog Computing", "Underwater Vehicles and Communication Systems", "Anomaly Detection Techniques and Applications", "Energy Efficient Wireless Sensor Networks", "Artificial Intelligence in Healthcare"]', None),
+    ("bcf2e9b7-e4fe-45b3-a9fe-574033704992", "Dr. Jagdish C. Bansal", "National Institute Of Technology Silchar", "A5023928504", None, None, None, "Researcher with 185 publications and 5,210 citations.", "https://ui-avatars.com/api/?name=Jagdish+Chand+Bansal&background=8B5E3C&color=fff&size=200", '["Metaheuristic Optimization Algorithms Research", "Evolutionary Algorithms and Applications", "Advanced Multi-Objective Optimization Algorithms", "Multi-Criteria Decision Making", "Artificial Immune Systems Applications"]', None),
+    ("28a0eb46-4587-4cba-b464-19ce762ad230", "Dr. Zhanhu Guo", "Ningbo University", "A5110015262", None, None, None, "Researcher with 1,655 publications and 144,243 citations.", "https://ui-avatars.com/api/?name=Zhanhu+Guo&background=8B5E3C&color=fff&size=200", '["Advancements in Battery Materials", "Supercapacitor Materials and Fabrication", "Advanced Battery Materials and Technologies", "Conducting polymers and applications", "Advanced Sensor and Energy Harvesting Materials"]', None),
+    ("b8b0902b-2df0-4482-bf41-76821d403504", "Dr. Ketan Kotecha", "Symbiosis International University", "A5092559347", None, None, None, "Researcher with 2 publications and 8 citations.", "https://ui-avatars.com/api/?name=Ketan+Kotecha&background=8B5E3C&color=fff&size=200", '["Smart Agriculture and AI", "Spectroscopy and Chemometric Analyses", "Human Pose and Action Recognition", "Advanced Malware Detection Techniques", "Anomaly Detection Techniques and Applications"]', None),
+    ("0744dc96-f7e7-4edc-8380-fc4c0eb3f25c", "Dr. Ganapati Yadav", "Institute of Chemical Technology, Mumbai", "A5063648631", None, None, None, "Researcher with 547 publications and 17,619 citations.", "https://ui-avatars.com/api/?name=Ganapati+D.+Yadav&background=8B5E3C&color=fff&size=200", '["Chemical Synthesis and Reactions", "Catalysis for Biomass Conversion", "Mesoporous Materials and Catalysis", "Enzyme Catalysis and Immobilization", "Microwave-Assisted Synthesis and Applications"]', None),
+    ("2538139c-b17e-4c24-9450-56b7e3f48b07", "Dr. Dattatray Takale", "VIT, Pune", "A5093554874", None, None, None, "Researcher with 67 publications and 188 citations.", "https://ui-avatars.com/api/?name=Dattatray+G.+Takale&background=8B5E3C&color=fff&size=200", '["AI in cancer detection", "Artificial Intelligence in Healthcare", "Energy Efficient Wireless Sensor Networks", "COVID-19 diagnosis using AI", "Brain Tumor Detection and Classification"]', None),
+    ("42a9c38a-0068-46f7-9d80-ee26c151661e", "Nilanjan Dey", "Techno India University, Kolkata", "A5000975435", "0000-0001-8437-498X", None, None, "Researcher with 903 publications and 19,909 citations.", "https://ui-avatars.com/api/?name=Nilanjan+Dey&background=8B5E3C&color=fff&size=200", '["Advanced Steganography and Watermarking Techniques", "Medical Image Segmentation Techniques", "Image Retrieval and Classification Techniques", "AI in cancer detection", "Brain Tumor Detection and Classification"]', "3,6"),
+]
+
+GR_RATINGS = [
+    ("0f0fec79-4927-453e-9824-dcaf78277bdc", 27.5, 64.0, 44.2,  0.0, 50.0, 37.7, "GR-D", 10),
+    ("ca909144-c5db-41f4-9e7d-b54fdcbd65db", 88.8, 86.6, 69.2, 54.0, 50.0, 74.4, "GR-B",  8),
+    ("bcf2e9b7-e4fe-45b3-a9fe-574033704992", 95.1, 87.6, 71.7, 50.7, 50.0, 75.9, "GR-B",  6),
+    ("28a0eb46-4587-4cba-b464-19ce762ad230", 99.3, 90.8, 83.9, 90.4, 50.0, 87.7, "GR-A",  1),
+    ("b8b0902b-2df0-4482-bf41-76821d403504", 13.6, 91.6, 81.3, 84.9, 50.0, 65.1, "GR-C",  2),
+    ("0744dc96-f7e7-4edc-8380-fc4c0eb3f25c", 97.9, 86.3, 83.1, 90.7, 50.0, 86.0, "GR-A",  3),
+    ("2538139c-b17e-4c24-9450-56b7e3f48b07", 70.9, 81.9, 64.3, 72.0, 50.0, 71.3, "GR-B",  7),
+    ("42a9c38a-0068-46f7-9d80-ee26c151661e", 98.2, 90.2, 83.0, 80.0, 50.0, 85.1, "GR-A",  4),
+]
+
+
+async def main():
+    async with SessionLocal() as s:
+        # Wipe existing data (keep google-onboarded users)
+        await s.execute(text("""
+            DELETE FROM gr_ratings WHERE researcher_id IN (
+                SELECT id FROM researchers WHERE openalex_id NOT LIKE 'g\\_%' ESCAPE '\\'
+            )
+        """))
+        await s.execute(text("""
+            DELETE FROM raw_metrics WHERE researcher_id IN (
+                SELECT id FROM researchers WHERE openalex_id NOT LIKE 'g\\_%' ESCAPE '\\'
+            )
+        """))
+        await s.execute(text("DELETE FROM researchers WHERE openalex_id NOT LIKE 'g\\_%' ESCAPE '\\'"))
+        await s.commit()
+        print("Wiped existing non-google researchers.")
+
+        # Insert seed researchers
+        for r in RESEARCHERS:
+            rid, name, affiliation, openalex_id, orcid, google_scholar_id, openalex_profile_url, bio, photo_url, topics, sdg_ids = r
+            await s.execute(text("""
+                INSERT INTO researchers (id, name, affiliation, openalex_id, orcid, google_scholar_id, bio, photo_url, topics, sdg_ids)
+                VALUES (:id, :name, :affiliation, :openalex_id, :orcid, :gsid, :bio, :photo_url, :topics, :sdg_ids)
+                ON CONFLICT (id) DO UPDATE SET
+                    name=EXCLUDED.name, affiliation=EXCLUDED.affiliation,
+                    openalex_id=EXCLUDED.openalex_id, bio=EXCLUDED.bio,
+                    photo_url=EXCLUDED.photo_url, topics=EXCLUDED.topics, sdg_ids=EXCLUDED.sdg_ids
+            """), {"id": rid, "name": name, "affiliation": affiliation, "openalex_id": openalex_id,
+                   "orcid": orcid, "gsid": google_scholar_id, "bio": bio, "photo_url": photo_url,
+                   "topics": topics, "sdg_ids": sdg_ids})
+
+        # Insert GR ratings
+        for g in GR_RATINGS:
+            rid, p1, p2, p3, p4, p5, gr, tier, rank = g
+            await s.execute(text("""
+                INSERT INTO gr_ratings (researcher_id, p1_score, p2_score, p3_score, p4_score, p5_score, gr_rating, tier, rank_overall)
+                VALUES (:rid, :p1, :p2, :p3, :p4, :p5, :gr, :tier, :rank)
+                ON CONFLICT (researcher_id) DO UPDATE SET
+                    p1_score=EXCLUDED.p1_score, p2_score=EXCLUDED.p2_score,
+                    p3_score=EXCLUDED.p3_score, p4_score=EXCLUDED.p4_score,
+                    p5_score=EXCLUDED.p5_score, gr_rating=EXCLUDED.gr_rating,
+                    tier=EXCLUDED.tier, rank_overall=EXCLUDED.rank_overall
+            """), {"rid": rid, "p1": p1, "p2": p2, "p3": p3, "p4": p4, "p5": p5,
+                   "gr": gr, "tier": tier, "rank": rank})
+
+        await s.commit()
+        print(f"Seeded {len(RESEARCHERS)} researchers with exact local GR scores.")
+
+
+asyncio.run(main())

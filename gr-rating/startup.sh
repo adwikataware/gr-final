@@ -9,8 +9,8 @@ python -m alembic upgrade head || {
     python -m alembic upgrade head || echo "Migration warning: continuing anyway"
 }
 
-echo "Removing extra researchers (keeping only seed + onboarded)..."
-python cleanup_extra_researchers.py || echo "Cleanup skipped"
+echo "Seeding exact researcher data from local..."
+python seed_prod.py || echo "Seed skipped"
 
 echo "Applying affiliation overrides..."
 python fix_affiliations.py || echo "Affiliation fix skipped"
