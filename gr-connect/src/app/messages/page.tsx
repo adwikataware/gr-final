@@ -152,6 +152,7 @@ function UserProfilePanel({ uid, name, photo, onClose }: { uid: string; name: st
   return (
     <AnimatePresence>
       <motion.div
+        key="profile-backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -159,6 +160,7 @@ function UserProfilePanel({ uid, name, photo, onClose }: { uid: string; name: st
         onClick={onClose}
       />
       <motion.aside
+        key="profile-panel"
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
