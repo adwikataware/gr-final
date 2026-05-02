@@ -179,17 +179,17 @@ export default function HubPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex bg-cream-50">
+    <div className="h-[calc(100vh-4rem)] flex bg-cream-50 overflow-hidden">
       {/* ============================================================ */}
       {/* LEFT SIDEBAR                                                  */}
       {/* ============================================================ */}
       <aside className="w-64 shrink-0 border-r border-clay-muted/30 bg-white p-4 flex flex-col gap-6 overflow-y-auto">
         {/* Branding */}
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-lg bg-charcoal flex items-center justify-center">
-            <span className="text-white font-bold text-sm">R</span>
+          <div className="w-9 h-9 rounded-lg bg-warm-brown flex items-center justify-center">
+            <span className="text-white font-bold text-sm">GR</span>
           </div>
-          <span className="font-serif text-lg font-semibold text-charcoal tracking-tight">ResearchHub</span>
+          <span className="font-serif text-lg font-semibold text-charcoal tracking-tight">GR Connect</span>
         </div>
 
         {/* Navigation */}
