@@ -41,15 +41,15 @@ async def main():
         # Wipe existing data (keep google-onboarded users)
         await s.execute(text("""
             DELETE FROM gr_ratings WHERE researcher_id IN (
-                SELECT id FROM researchers WHERE openalex_id NOT LIKE 'g\\_%' ESCAPE '\\'
+                SELECT id FROM researchers WHERE openalex_id NOT LIKE 'g_%'
             )
         """))
         await s.execute(text("""
             DELETE FROM raw_metrics WHERE researcher_id IN (
-                SELECT id FROM researchers WHERE openalex_id NOT LIKE 'g\\_%' ESCAPE '\\'
+                SELECT id FROM researchers WHERE openalex_id NOT LIKE 'g_%'
             )
         """))
-        await s.execute(text("DELETE FROM researchers WHERE openalex_id NOT LIKE 'g\\_%' ESCAPE '\\'"))
+        await s.execute(text("DELETE FROM researchers WHERE openalex_id NOT LIKE 'g_%'"))
         await s.commit()
         print("Wiped existing non-google researchers.")
 
