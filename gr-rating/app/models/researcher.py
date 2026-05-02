@@ -14,7 +14,7 @@ class Researcher(Base):
     openalex_id: Mapped[str | None] = mapped_column(String(50), unique=True)
     semantic_scholar_id: Mapped[str | None] = mapped_column(String(50))
     orcid: Mapped[str | None] = mapped_column(String(20))
-    google_scholar_id: Mapped[str | None] = mapped_column(String(20))
+    google_scholar_id: Mapped[str | None] = mapped_column(String(64))
     # Enriched fields from OpenAlex
     bio: Mapped[str | None] = mapped_column(Text)
     photo_url: Mapped[str | None] = mapped_column(String(500))

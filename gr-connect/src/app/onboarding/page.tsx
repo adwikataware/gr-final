@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/lib/AuthContext";
 
 const EXPERTISE_OPTIONS = [
@@ -20,6 +20,17 @@ const SDG_LIST = [
   "Life on Land", "Peace & Justice", "Partnerships",
 ];
 
+interface OrcidData {
+  name: string;
+  affiliation: string;
+  topics: string[];
+  bio: string;
+  works_count: number;
+  cited_by_count: number;
+  h_index: number;
+  claimed_seed?: boolean;
+}
+
 export default function OnboardingPage() {
   const { profile, updateUserProfile, user, loading } = useAuth();
   const router = useRouter();
@@ -28,15 +39,17 @@ export default function OnboardingPage() {
   const [affiliation, setAffiliation] = useState("");
   const [bio, setBio] = useState("");
   const [orcid, setOrcid] = useState("");
-  const [orcidStatus, setOrcidStatus] = useState<"idle" | "fetching" | "found" | "notfound">("idle");
-  const [orcidData, setOrcidData] = useState<{ name: string; affiliation: string; topics: string[] } | null>(null);
+  const [orcidStatus, setOrcidStatus] = useState<"idle" | "fetching" | "found" | "notfound" | "taken">("idle");
+  const [orcidData, setOrcidData] = useState<OrcidData | null>(null);
+  const [claimedProfile, setClaimedProfile] = useState<OrcidData | null>(null); // seed profile found
+  const [showClaimConfirm, setShowClaimConfirm] = useState(false);
   const [expertise, setExpertise] = useState<string[]>([]);
   const [sdgs, setSdgs] = useState<number[]>([]);
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const isExpert = profile?.role === "expert";
+  const totalSteps = isExpert ? 3 : 2;
 
   if (loading) {
     return (
@@ -58,16 +71,10 @@ export default function OnboardingPage() {
     );
   }
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPhotoFile(file);
-    setPhotoPreview(URL.createObjectURL(file));
-  }
-
   async function handleOrcidFetch() {
     if (!orcid.trim() || !user) return;
     setOrcidStatus("fetching");
+    setError("");
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       const res = await fetch(`${apiUrl}/api/v1/researchers/claim`, {
@@ -75,50 +82,146 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orcid: orcid.trim(), firebase_uid: user.uid }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        setOrcidData({ name: data.name, affiliation: data.affiliation, topics: data.topics });
-        if (data.affiliation) setAffiliation(data.affiliation);
-        setOrcidStatus("found");
-      } else {
-        setOrcidStatus("notfound");
+
+      if (res.status === 409) {
+        setOrcidStatus("taken");
+        return;
       }
+
+      if (!res.ok) {
+        setOrcidStatus("notfound");
+        return;
+      }
+
+      const data = await res.json();
+      const od: OrcidData = {
+        name: data.name,
+        affiliation: data.affiliation,
+        topics: data.topics,
+        bio: data.bio || `Researcher with ${data.works_count} publications and ${data.cited_by_count} citations.`,
+        works_count: data.works_count,
+        cited_by_count: data.cited_by_count,
+        h_index: data.h_index,
+        claimed_seed: data.claimed_seed,
+      };
+      setOrcidData(od);
+      if (data.affiliation) setAffiliation(data.affiliation);
+      if (data.bio) setBio(data.bio);
+      if (data.topics?.length) setExpertise(data.topics.slice(0, 6));
+
+      if (data.claimed_seed) {
+        // Found a matching seed profile — show confirmation
+        setClaimedProfile(od);
+        setShowClaimConfirm(true);
+      }
+
+      setOrcidStatus("found");
     } catch {
       setOrcidStatus("notfound");
     }
   }
 
+  function handleConfirmClaim() {
+    setShowClaimConfirm(false);
+    // Data already applied, just continue
+  }
+
   async function handleFinish() {
-    setUploading(true);
+    if (!user) return;
+    setSaving(true);
+    setError("");
     try {
-      let photoURL = profile?.photoURL || null;
-      if (photoFile && user) {
-        const formData = new FormData();
-        formData.append("file", photoFile);
-        formData.append("uid", user.uid);
-        const res = await fetch("/api/upload-avatar", { method: "POST", body: formData });
-        if (res.ok) {
-          const data = await res.json();
-          photoURL = data.url;
-        }
+      // Sync to backend if expert (non-ORCID path — just update Firestore profile)
+      if (isExpert && !orcidData) {
+        // They skipped ORCID — shouldn't happen with mandatory flow, but handle gracefully
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        await fetch(`${apiUrl}/api/v1/researchers/sync-google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firebase_uid: user.uid,
+            name: profile?.displayName || user.displayName || "Researcher",
+            email: profile?.email || user.email || "",
+            affiliation,
+            bio,
+            topics: expertise,
+            sdg_ids: sdgs,
+            photo_url: profile?.photoURL || "",
+          }),
+        });
       }
+
       await updateUserProfile({
         affiliation,
         bio,
         expertise,
-        photoURL,
         onboardingComplete: true,
       });
       router.push("/dashboard");
     } catch (err) {
       console.error(err);
+      setError("Something went wrong. Please try again.");
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
   }
 
+  const canProceedStep1 = isExpert ? orcidStatus === "found" : true;
+
   return (
     <div className="min-h-screen bg-cream-bg flex items-center justify-center px-4 py-12">
+      {/* Claim confirmation modal */}
+      <AnimatePresence>
+        {showClaimConfirm && claimedProfile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full"
+            >
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="font-serif text-xl font-semibold text-charcoal text-center mb-1">
+                We found your profile!
+              </h2>
+              <p className="text-text-muted text-sm text-center mb-6">
+                This ORCID matches an existing researcher profile. Confirm it's you to take ownership.
+              </p>
+              <div className="bg-cream-bg rounded-xl p-4 mb-6 space-y-2">
+                <p className="font-semibold text-charcoal">{claimedProfile.name}</p>
+                <p className="text-sm text-text-muted">{claimedProfile.affiliation}</p>
+                <div className="flex gap-4 text-xs text-warm-brown font-medium pt-1">
+                  <span>{claimedProfile.works_count} publications</span>
+                  <span>{claimedProfile.cited_by_count.toLocaleString()} citations</span>
+                  <span>h-index {claimedProfile.h_index}</span>
+                </div>
+              </div>
+              <button
+                onClick={handleConfirmClaim}
+                className="w-full py-3 bg-warm-brown text-white rounded-xl text-sm font-medium hover:bg-warm-brown-dark transition-colors"
+              >
+                Yes, this is my profile
+              </button>
+              <button
+                onClick={() => { setShowClaimConfirm(false); setOrcidStatus("idle"); setOrcid(""); setOrcidData(null); setClaimedProfile(null); }}
+                className="w-full py-2 mt-2 text-sm text-text-muted hover:text-charcoal transition-colors"
+              >
+                This is not me
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
@@ -132,55 +235,34 @@ export default function OnboardingPage() {
           <h1 className="font-serif text-2xl font-semibold text-charcoal">
             Complete your profile
           </h1>
-          <p className="text-text-muted text-sm mt-2">
-            Step {step} of {isExpert ? 3 : 2}
-          </p>
-          {/* Progress bar */}
+          <p className="text-text-muted text-sm mt-2">Step {step} of {totalSteps}</p>
           <div className="mt-4 h-1 bg-clay-muted/30 rounded-full max-w-xs mx-auto">
             <div
               className="h-1 bg-warm-brown rounded-full transition-all duration-500"
-              style={{ width: `${(step / (isExpert ? 3 : 2)) * 100}%` }}
+              style={{ width: `${(step / totalSteps) * 100}%` }}
             />
           </div>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-clay-muted/30 p-8">
+
           {/* Step 1 — Basic info */}
           {step === 1 && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
               <h2 className="font-semibold text-charcoal text-lg">Basic Information</h2>
 
-              {/* Photo upload */}
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-clay-muted/30 overflow-hidden flex items-center justify-center">
-                  {photoPreview ? (
-                    <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <span className="text-xl font-semibold text-warm-brown">
-                      {profile?.displayName?.charAt(0) || "?"}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <label className="cursor-pointer text-sm font-medium text-warm-brown hover:underline">
-                    Upload photo
-                    <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-                  </label>
-                  <p className="text-xs text-text-muted mt-0.5">JPG or PNG, max 5MB</p>
-                </div>
-              </div>
-
-              {/* ORCID field — expert only */}
+              {/* ORCID field — expert only, now mandatory */}
               {isExpert && (
                 <div>
                   <label className="block text-sm font-medium text-charcoal mb-1.5">
-                    ORCID ID <span className="text-text-muted font-normal">(recommended)</span>
+                    ORCID ID <span className="text-red-500">*</span>
+                    <span className="text-text-muted font-normal ml-1">(required for researchers)</span>
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={orcid}
-                      onChange={(e) => { setOrcid(e.target.value); setOrcidStatus("idle"); }}
+                      onChange={(e) => { setOrcid(e.target.value); setOrcidStatus("idle"); setOrcidData(null); }}
                       placeholder="e.g. 0000-0002-1825-0097"
                       className="flex-1 px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors"
                     />
@@ -190,36 +272,68 @@ export default function OnboardingPage() {
                       disabled={!orcid.trim() || orcidStatus === "fetching"}
                       className="px-4 py-2.5 bg-warm-brown text-white text-sm font-medium rounded-xl hover:bg-warm-brown-dark transition-colors disabled:opacity-50 shrink-0"
                     >
-                      {orcidStatus === "fetching" ? "..." : "Fetch"}
+                      {orcidStatus === "fetching" ? (
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Verifying
+                        </span>
+                      ) : "Verify"}
                     </button>
                   </div>
+
                   {orcidStatus === "found" && orcidData && (
                     <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-xl text-sm">
-                      <p className="font-medium text-green-800">✓ Found: {orcidData.name}</p>
+                      <p className="font-medium text-green-800">✓ Verified: {orcidData.name}</p>
                       <p className="text-green-700 text-xs mt-0.5">{orcidData.affiliation}</p>
-                      {orcidData.topics.length > 0 && (
-                        <p className="text-green-600 text-xs mt-0.5">Topics: {orcidData.topics.slice(0, 3).join(", ")}</p>
+                      <div className="flex gap-3 text-xs text-green-600 mt-1">
+                        <span>{orcidData.works_count} publications</span>
+                        <span>{orcidData.cited_by_count.toLocaleString()} citations</span>
+                        <span>h-index {orcidData.h_index}</span>
+                      </div>
+                      {orcidData.claimed_seed && (
+                        <p className="text-xs text-green-700 mt-1 font-medium">
+                          ✓ Your existing researcher profile has been linked to your account.
+                        </p>
                       )}
                     </div>
                   )}
                   {orcidStatus === "notfound" && (
-                    <p className="mt-2 text-xs text-red-600">ORCID not found on OpenAlex. You can still continue manually.</p>
+                    <p className="mt-2 text-xs text-red-600">
+                      ORCID not found on OpenAlex. Make sure your ORCID is linked to your publications at{" "}
+                      <a href="https://orcid.org" target="_blank" rel="noopener noreferrer" className="underline">orcid.org</a>.
+                    </p>
                   )}
-                  <p className="text-xs text-text-muted mt-1.5">Your ORCID lets us fetch your real research data from OpenAlex automatically.</p>
+                  {orcidStatus === "taken" && (
+                    <p className="mt-2 text-xs text-red-600">
+                      This ORCID is already linked to another account. If this is your profile, contact support.
+                    </p>
+                  )}
+
+                  <p className="text-xs text-text-muted mt-1.5">
+                    Your ORCID proves your researcher identity and fetches your real publication data automatically.
+                    Don&apos;t have one?{" "}
+                    <a href="https://orcid.org/register" target="_blank" rel="noopener noreferrer" className="text-warm-brown underline">
+                      Register free at orcid.org
+                    </a>
+                  </p>
                 </div>
               )}
 
               <div>
                 <label className="block text-sm font-medium text-charcoal mb-1.5">
-                  Institution / Affiliation
+                  Institution / Affiliation {!isExpert && <span className="text-text-muted font-normal">(optional)</span>}
                 </label>
                 <input
                   type="text"
                   value={affiliation}
                   onChange={(e) => setAffiliation(e.target.value)}
                   placeholder="e.g. MIT, VIT Pune, Independent Researcher"
-                  className="w-full px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors"
+                  disabled={isExpert && orcidStatus === "found"}
+                  className="w-full px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors disabled:opacity-60"
                 />
+                {isExpert && orcidStatus === "found" && (
+                  <p className="text-xs text-text-muted mt-1">Auto-filled from your ORCID record.</p>
+                )}
               </div>
 
               <div>
@@ -235,9 +349,19 @@ export default function OnboardingPage() {
                 />
               </div>
 
+              {isExpert && orcidStatus !== "found" && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+                  <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z" />
+                  </svg>
+                  <span>ORCID verification is required to create a researcher profile. This ensures only real researchers can be listed on GR Connect.</span>
+                </div>
+              )}
+
               <button
                 onClick={() => setStep(2)}
-                className="w-full py-3 bg-warm-brown text-white rounded-xl text-sm font-medium hover:bg-warm-brown-dark transition-colors"
+                disabled={!canProceedStep1}
+                className="w-full py-3 bg-warm-brown text-white rounded-xl text-sm font-medium hover:bg-warm-brown-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Continue
               </button>
@@ -267,7 +391,6 @@ export default function OnboardingPage() {
                   </button>
                 ))}
               </div>
-
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setStep(1)}
@@ -277,10 +400,10 @@ export default function OnboardingPage() {
                 </button>
                 <button
                   onClick={() => isExpert ? setStep(3) : handleFinish()}
-                  disabled={uploading}
+                  disabled={saving}
                   className="flex-1 py-3 bg-warm-brown text-white rounded-xl text-sm font-medium hover:bg-warm-brown-dark transition-colors disabled:opacity-50"
                 >
-                  {isExpert ? "Continue" : uploading ? "Saving..." : "Finish"}
+                  {isExpert ? "Continue" : saving ? "Saving..." : "Finish"}
                 </button>
               </div>
             </motion.div>
@@ -309,7 +432,7 @@ export default function OnboardingPage() {
                   </button>
                 ))}
               </div>
-
+              {error && <p className="text-xs text-red-600">{error}</p>}
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={() => setStep(2)}
@@ -319,10 +442,10 @@ export default function OnboardingPage() {
                 </button>
                 <button
                   onClick={handleFinish}
-                  disabled={uploading}
+                  disabled={saving}
                   className="flex-1 py-3 bg-warm-brown text-white rounded-xl text-sm font-medium hover:bg-warm-brown-dark transition-colors disabled:opacity-50"
                 >
-                  {uploading ? "Saving..." : "Finish"}
+                  {saving ? "Saving..." : "Finish"}
                 </button>
               </div>
             </motion.div>

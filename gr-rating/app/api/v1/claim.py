@@ -207,7 +207,6 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
 
         results = resp.json().get("results", [])
         if not results:
-            # Try searching by ORCID URL format
             resp2 = await client.get(
                 f"{BASE_URL}/authors",
                 params={"filter": f"orcid:https://orcid.org/{orcid}", "per-page": 1},
@@ -238,12 +237,20 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
 
     topics = [t.get("display_name", "") for t in author.get("topics", [])[:6] if t.get("display_name")]
     sdg_ids = extract_sdgs(author, topics)
-    bio = f"Researcher with {works_count} publications and {cited_by_count} citations."
+    bio = f"Researcher with {works_count:,} publications and {cited_by_count:,} citations."
     clean_name = re.sub(r'^(Dr\.?|Prof\.?|Mr\.?|Mrs\.?|Ms\.?)\s+', '', display_name)
     photo_url = f"https://ui-avatars.com/api/?name={clean_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
     gr_rating, tier = compute_gr(works_count, cited_by_count, h_index)
 
-    # Check if researcher already exists by openalex_id or firebase_uid
+    # ----------------------------------------------------------------
+    # Secure claim logic:
+    # 1. If this firebase_uid already owns a researcher record → update it
+    # 2. Else if a seed record exists with this openalex_id (unclaimed) → take it over
+    # 3. Else create a new record
+    # This prevents anyone from claiming a profile that's already owned.
+    # ----------------------------------------------------------------
+
+    # Find existing record by openalex_id or firebase_uid
     existing = (await session.execute(
         select(Researcher).where(
             (Researcher.openalex_id == openalex_id) |
@@ -264,7 +271,8 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
     r.photo_url = photo_url
     r.topics = json.dumps(topics)
     r.sdg_ids = ",".join(str(x) for x in sdg_ids)
-    r.google_scholar_id = body.firebase_uid  # reuse field to store firebase UID
+    r.google_scholar_id = body.firebase_uid
+    r.openalex_id = openalex_id  # update in case seed had a wrong ID
 
     await session.flush()
 
