@@ -516,7 +516,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                   <p className="text-xs text-text-muted mt-1">Research contribution to UN Sustainable Development Goals</p>
                 </div>
               </div>
-              <motion.div variants={stagger} initial="hidden" animate={sdgInView ? "visible" : "hidden"}
+              <motion.div variants={stagger} initial="hidden" animate="visible"
                 className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
                 {activeSdgs.map((sdgId) => {
                   const meta = SDG_META[sdgId];

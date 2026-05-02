@@ -15,7 +15,7 @@ import ParticleWeb from "@/components/ParticleWeb";
 import ScrollRevealText from "@/components/ScrollRevealText";
 import MagneticButton from "@/components/MagneticButton";
 import CountUp from "@/components/CountUp";
-import { experts, sdgData } from "@/data/mockData";
+import { sdgData } from "@/data/mockData";
 
 /* ------------------------------------------------------------------ */
 /*  SVG ICONS (replacing all emojis)                                   */
@@ -498,15 +498,58 @@ function HowItWorksSection() {
 /*  Researchers stacked in perspective, cycling on scroll               */
 /* ================================================================== */
 
+interface CarouselExpert {
+  id: string;
+  name: string;
+  title: string;
+  avatar: string;
+  grRating: number;
+}
+
+function getDesignationShort(name: string, tierLabel: string, affiliation: string): string {
+  if (/^Prof\.?/i.test(name)) return `Professor${affiliation ? ` at ${affiliation}` : ""}`;
+  if (/^Dr\.?/i.test(name)) return `Researcher${affiliation ? ` at ${affiliation}` : ""}`;
+  if (tierLabel === "Elite") return "Distinguished Researcher";
+  if (tierLabel === "Premier") return "Senior Researcher";
+  return "Researcher";
+}
+
 function LayerScroller() {
-  const [active, setActive] = useState(Math.floor(experts.length / 2));
+  const [experts, setExperts] = useState<CarouselExpert[]>([]);
+  const [active, setActive] = useState(0);
+
+  useEffect(() => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    fetch(`${apiUrl}/api/v1/discover?limit=10`)
+      .then((r) => r.json())
+      .then((data) => {
+        const mapped: CarouselExpert[] = (data.researchers || []).map((r: {
+          id: string; name: string; photo_url: string; gr_rating: number;
+          tier_label: string; affiliation: string;
+        }) => ({
+          id: r.id,
+          name: r.name,
+          title: getDesignationShort(r.name, r.tier_label, r.affiliation),
+          avatar: r.photo_url,
+          grRating: Math.round(r.gr_rating * 10) / 10,
+        }));
+        setExperts(mapped);
+        setActive(Math.floor(mapped.length / 2));
+      })
+      .catch(() => {});
+  }, []);
+
   const count = experts.length;
 
-  // Auto-cycle
   useEffect(() => {
+    if (count === 0) return;
     const t = setInterval(() => setActive((p) => (p + 1) % count), 4000);
     return () => clearInterval(t);
   }, [count]);
+
+  if (experts.length === 0) {
+    return <div className="relative w-full h-[440px] flex items-center justify-center"><span className="text-white/30 text-sm">Loading researchers...</span></div>;
+  }
 
   return (
     <div
@@ -527,18 +570,9 @@ function LayerScroller() {
           <motion.div
             key={expert.id}
             className="absolute cursor-pointer"
-            animate={{
-              x: xOffset,
-              rotateY: rotY,
-              scale: sc,
-              z: zOff,
-              opacity: op,
-            }}
+            animate={{ x: xOffset, rotateY: rotY, scale: sc, z: zOff, opacity: op }}
             transition={{ type: "spring", stiffness: 180, damping: 26 }}
-            style={{
-              zIndex: zi,
-              transformStyle: "preserve-3d",
-            }}
+            style={{ zIndex: zi, transformStyle: "preserve-3d" }}
             onClick={() => setActive(i)}
           >
             <Link
@@ -552,17 +586,12 @@ function LayerScroller() {
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-transparent to-transparent" />
-
-                {/* Bottom overlay info */}
                 <div className="absolute bottom-0 left-0 right-0 p-4">
-                  {/* GR Rating pill */}
                   <div className="inline-flex items-center gap-1.5 bg-black/50 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/15 mb-2">
                     <span className="text-[10px] font-bold text-warm-brown">GR</span>
                     <span className="text-sm font-bold text-white">{expert.grRating}</span>
                   </div>
-                  <h3 className="text-sm font-semibold text-white leading-tight">
-                    {expert.name}
-                  </h3>
+                  <h3 className="text-sm font-semibold text-white leading-tight">{expert.name}</h3>
                   <p className="text-[11px] text-white/50 mt-0.5">{expert.title}</p>
                 </div>
               </div>
@@ -571,16 +600,13 @@ function LayerScroller() {
         );
       })}
 
-      {/* Navigation dots */}
       <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-2 z-[200]">
         {experts.map((_, i) => (
           <button
             key={i}
             onClick={() => setActive(i)}
             className={`h-1.5 rounded-full transition-all duration-300 ${
-              i === active
-                ? "bg-warm-brown w-8"
-                : "bg-white/20 hover:bg-white/40 w-1.5"
+              i === active ? "bg-warm-brown w-8" : "bg-white/20 hover:bg-white/40 w-1.5"
             }`}
           />
         ))}
