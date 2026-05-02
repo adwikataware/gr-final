@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   collection,
@@ -100,6 +101,151 @@ function getOtherParticipant(conv: Conversation, myUid: string) {
 /* ------------------------------------------------------------------ */
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
+/* ------------------------------------------------------------------ */
+/* User Profile Slide-over Panel                                       */
+/* ------------------------------------------------------------------ */
+interface UserProfile {
+  uid: string;
+  name: string;
+  photo: string;
+  role?: string;
+  bio?: string;
+  affiliation?: string;
+  expertise?: string[];
+  researcherId?: string; // set if they're an expert with a researcher record
+}
+
+function UserProfilePanel({ uid, name, photo, onClose }: { uid: string; name: string; photo: string; onClose: () => void }) {
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!uid) return;
+    // Load from Firestore
+    getDoc(doc(db, "users", uid)).then((snap) => {
+      const data = snap.exists() ? snap.data() : {};
+      setProfile({
+        uid,
+        name: data.displayName || name,
+        photo: data.photoURL || photo,
+        role: data.role,
+        bio: data.bio,
+        affiliation: data.affiliation,
+        expertise: data.expertise || [],
+      });
+    }).finally(() => setLoading(false));
+  }, [uid, name, photo]);
+
+  // Also check if they have a researcher record
+  const [researcherId, setResearcherId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!uid) return;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    fetch(`${apiUrl}/api/v1/discover?limit=200`)
+      .then(r => r.json())
+      .then(data => {
+        const match = (data.researchers || []).find((r: { firebase_uid: string; id: string }) => r.firebase_uid === uid);
+        if (match) setResearcherId(match.id);
+      }).catch(() => {});
+  }, [uid]);
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-40 bg-black/30"
+        onClick={onClose}
+      />
+      <motion.aside
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="fixed right-0 top-0 h-full w-80 bg-white shadow-2xl z-50 flex flex-col"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-clay-muted/30">
+          <span className="text-sm font-semibold text-charcoal">Profile</span>
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-cream-bg transition-colors text-charcoal/60">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-warm-brown border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : profile ? (
+          <div className="flex-1 overflow-y-auto">
+            {/* Avatar + name */}
+            <div className="px-5 py-6 flex flex-col items-center text-center border-b border-clay-muted/20">
+              {profile.photo ? (
+                <img src={profile.photo} alt={profile.name} className="w-20 h-20 rounded-full object-cover shadow-md mb-3" />
+              ) : (
+                <div className="w-20 h-20 rounded-full bg-warm-brown/20 flex items-center justify-center text-warm-brown text-2xl font-semibold mb-3">
+                  {profile.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <h3 className="font-serif text-lg font-semibold text-charcoal">{profile.name}</h3>
+              {profile.affiliation && <p className="text-xs text-text-muted mt-0.5">{profile.affiliation}</p>}
+              <span className={`mt-2 px-3 py-0.5 rounded-full text-xs font-medium ${profile.role === "expert" ? "bg-warm-brown/15 text-warm-brown-dark" : "bg-charcoal/8 text-charcoal"}`}>
+                {profile.role === "expert" ? "Expert" : "Seeker"}
+              </span>
+            </div>
+
+            {/* Bio */}
+            {profile.bio && (
+              <div className="px-5 py-4 border-b border-clay-muted/20">
+                <p className="text-xs font-semibold text-charcoal/50 uppercase tracking-wide mb-2">About</p>
+                <p className="text-sm text-charcoal/80 leading-relaxed">{profile.bio}</p>
+              </div>
+            )}
+
+            {/* Expertise tags */}
+            {profile.expertise && profile.expertise.length > 0 && (
+              <div className="px-5 py-4 border-b border-clay-muted/20">
+                <p className="text-xs font-semibold text-charcoal/50 uppercase tracking-wide mb-2">Interests</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {profile.expertise.map((t) => (
+                    <span key={t} className="px-2.5 py-1 text-xs rounded-full bg-cream-bg border border-warm-brown/15 text-charcoal/70">{t}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Link to full expert profile if they're an expert */}
+            {researcherId && (
+              <div className="px-5 py-4">
+                <Link
+                  href={`/expert/${researcherId}`}
+                  onClick={onClose}
+                  className="flex items-center justify-center gap-2 w-full py-2.5 bg-warm-brown text-white text-sm font-medium rounded-xl hover:bg-warm-brown-dark transition-colors"
+                >
+                  View Full Research Profile
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                </Link>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!profile.bio && (!profile.expertise || profile.expertise.length === 0) && !researcherId && (
+              <div className="px-5 py-8 text-center">
+                <p className="text-sm text-text-muted">No additional profile info available.</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-sm text-text-muted">Could not load profile.</p>
+          </div>
+        )}
+      </motion.aside>
+    </AnimatePresence>
+  );
+}
+
 export default function MessagesPage() {
   const { user, isLoggedIn, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -111,6 +257,7 @@ export default function MessagesPage() {
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [sending, setSending] = useState(false);
+  const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [sendError, setSendError] = useState("");
   const [otherPublicKeys, setOtherPublicKeys] = useState<Record<string, string>>({});
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -351,7 +498,10 @@ export default function MessagesPage() {
       {activeConv && otherUser ? (
         <section className="flex-1 flex flex-col min-w-0 bg-cream-50">
           <header className="h-16 px-6 flex items-center justify-between border-b border-clay-muted/30 bg-white shrink-0">
-            <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowProfilePanel(true)}
+              className="flex items-center gap-3 hover:opacity-80 transition-opacity text-left"
+            >
               {otherUser.photo ? (
                 <img src={otherUser.photo} alt={otherUser.name} className="w-9 h-9 rounded-full object-cover" />
               ) : (
@@ -360,13 +510,13 @@ export default function MessagesPage() {
                 </div>
               )}
               <div>
-                <span className="text-sm font-semibold text-charcoal">{otherUser.name}</span>
+                <span className="text-sm font-semibold text-charcoal underline-offset-2 hover:underline">{otherUser.name}</span>
                 <p className="flex items-center gap-1 text-[11px] text-green-600 mt-0.5">
                   <LockIcon />
                   End-to-end encrypted
                 </p>
               </div>
-            </div>
+            </button>
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
@@ -444,6 +594,16 @@ export default function MessagesPage() {
         <section className="flex-1 flex items-center justify-center text-text-muted text-sm bg-cream-50">
           Select a conversation
         </section>
+      )}
+
+      {/* Other user's profile slide-over */}
+      {showProfilePanel && otherUser && (
+        <UserProfilePanel
+          uid={otherUser.uid}
+          name={otherUser.name}
+          photo={otherUser.photo}
+          onClose={() => setShowProfilePanel(false)}
+        />
       )}
     </div>
   );
