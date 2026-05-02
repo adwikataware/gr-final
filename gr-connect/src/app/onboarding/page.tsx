@@ -131,9 +131,8 @@ export default function OnboardingPage() {
     setSaving(true);
     setError("");
     try {
-      // Sync to backend if expert (non-ORCID path — just update Firestore profile)
+      // Sync to backend for experts who skipped ORCID (manual path)
       if (isExpert && !orcidData) {
-        // They skipped ORCID — shouldn't happen with mandatory flow, but handle gracefully
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
         await fetch(`${apiUrl}/api/v1/researchers/sync-google`, {
           method: "POST",
@@ -166,7 +165,7 @@ export default function OnboardingPage() {
     }
   }
 
-  const canProceedStep1 = isExpert ? orcidStatus === "found" : true;
+  const canProceedStep1 = true; // ORCID is optional — experts can skip and fill manually
 
   return (
     <div className="min-h-screen bg-cream-bg flex items-center justify-center px-4 py-12">
@@ -255,8 +254,8 @@ export default function OnboardingPage() {
               {isExpert && (
                 <div>
                   <label className="block text-sm font-medium text-charcoal mb-1.5">
-                    ORCID ID <span className="text-red-500">*</span>
-                    <span className="text-text-muted font-normal ml-1">(required for researchers)</span>
+                    ORCID ID
+                    <span className="text-text-muted font-normal ml-1">(optional — skip to fill manually)</span>
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -310,29 +309,28 @@ export default function OnboardingPage() {
                   )}
 
                   <p className="text-xs text-text-muted mt-1.5">
-                    Your ORCID proves your researcher identity and fetches your real publication data automatically.
+                    Entering your ORCID auto-fills your profile and adds a <span className="text-warm-brown font-medium">Verified</span> badge.
                     Don&apos;t have one?{" "}
                     <a href="https://orcid.org/register" target="_blank" rel="noopener noreferrer" className="text-warm-brown underline">
-                      Register free at orcid.org
-                    </a>
+                      Register free
+                    </a>{" "}or just skip and fill manually below.
                   </p>
                 </div>
               )}
 
               <div>
                 <label className="block text-sm font-medium text-charcoal mb-1.5">
-                  Institution / Affiliation {!isExpert && <span className="text-text-muted font-normal">(optional)</span>}
+                  Institution / Affiliation <span className="text-text-muted font-normal">(optional)</span>
                 </label>
                 <input
                   type="text"
                   value={affiliation}
                   onChange={(e) => setAffiliation(e.target.value)}
                   placeholder="e.g. MIT, VIT Pune, Independent Researcher"
-                  disabled={isExpert && orcidStatus === "found"}
-                  className="w-full px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors disabled:opacity-60"
+                  className="w-full px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors"
                 />
-                {isExpert && orcidStatus === "found" && (
-                  <p className="text-xs text-text-muted mt-1">Auto-filled from your ORCID record.</p>
+                {orcidStatus === "found" && (
+                  <p className="text-xs text-text-muted mt-1">Auto-filled from your ORCID — you can edit if needed.</p>
                 )}
               </div>
 
@@ -348,15 +346,6 @@ export default function OnboardingPage() {
                   className="w-full px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors resize-none"
                 />
               </div>
-
-              {isExpert && orcidStatus !== "found" && (
-                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
-                  <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z" />
-                  </svg>
-                  <span>ORCID verification is required to create a researcher profile. This ensures only real researchers can be listed on GR Connect.</span>
-                </div>
-              )}
 
               <button
                 onClick={() => setStep(2)}
