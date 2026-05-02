@@ -177,19 +177,27 @@ def compute_gr(works_count: int, cited_by_count: int, h_index: int, i10_index: i
                total_patents: int = 0, books_authored: int = 0, books_edited: int = 0,
                unique_funders: int = 0, patent_links: int = 0,
                sdg_count: int = 0, sdg_mean_confidence: float = 0.0,
-               oa_percentage: float = 0.0, societal_mentions: int = 0):
+               oa_percentage: float = 0.0, societal_mentions: int = 0,
+               fwci: float = 0.0, citation_velocity: float = 0.0,
+               recency_index: float = 0.0, topic_prominence_cagr: float = 0.0):
 
     # P1 — Core Fundamental Research (25%)
-    p1_h       = S(h_index,       c=0.5)
+    p1_h       = S(h_index,       c=3)
     p1_cites   = S(cited_by_count, c=180)
     p1_pubs    = S(works_count,    c=8)
-    p1_i10     = S(i10_index,      c=0.5)
+    p1_i10     = S(i10_index,      c=3)
     p1 = round(p1_h * 0.30 + p1_cites * 0.25 + p1_pubs * 0.25 + p1_i10 * 0.20, 1)
 
     # P2 — Real-Time Performance (30%)
-    # FWCI, citation velocity, recency, topic CAGR not available from OpenAlex basic pull
-    # Default to neutral 50 until we enrich data
-    p2 = 50.0
+    # Use real values when available, fall back to neutral 50 per component when not
+    if fwci > 0 or citation_velocity > 0 or recency_index > 0 or topic_prominence_cagr > 0:
+        p2_fwci    = S(fwci,                   c=0.3)  if fwci > 0            else 50.0
+        p2_vel     = S(citation_velocity,       c=12)   if citation_velocity > 0 else 50.0
+        p2_rec     = S(recency_index,           c=0.3)  if recency_index > 0   else 50.0
+        p2_cagr    = S(topic_prominence_cagr,   c=3)    if topic_prominence_cagr > 0 else 50.0
+        p2 = round(p2_fwci * 0.35 + p2_vel * 0.25 + p2_rec * 0.20 + p2_cagr * 0.20, 1)
+    else:
+        p2 = 50.0
 
     # P3 — Sustainability & Societal Impact (15%)
     p3_sdg_cov  = S(sdg_count,            c=1.5)
@@ -290,10 +298,25 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
     bio = f"Researcher with {works_count:,} publications and {cited_by_count:,} citations."
     clean_name = re.sub(r'^(Dr\.?|Prof\.?|Mr\.?|Mrs\.?|Ms\.?)\s+', '', display_name)
     photo_url = f"https://ui-avatars.com/api/?name={clean_name.replace(' ', '+')}&background=8B5E3C&color=fff&size=200"
+
+    # P2 metrics from OpenAlex summary_stats
+    stats = author.get("summary_stats", {})
+    i10_index = stats.get("i10_index", 0)
+    fwci = stats.get("2yr_mean_citedness", 0.0) or 0.0
+    # Citation velocity: citations per year (use 2yr cited by count if available, else estimate)
+    cited_by_2yr = stats.get("2yr_cited_by_count", 0) or 0
+    citation_velocity = cited_by_2yr / 2.0 if cited_by_2yr > 0 else 0.0
+    # Recency index: fraction of works published in last 5 years
+    counts_by_year = author.get("counts_by_year", [])
+    recent_works = sum(y.get("works_count", 0) for y in counts_by_year if y.get("year", 0) >= 2020)
+    recency_index = (recent_works / works_count) if works_count > 0 else 0.0
     gr_rating, tier, p1, p2, p3, p4, p5 = compute_gr(
         works_count, cited_by_count, h_index,
-        i10_index=author.get("summary_stats", {}).get("i10_index", 0),
+        i10_index=i10_index,
         sdg_count=len(sdg_ids),
+        fwci=fwci,
+        citation_velocity=citation_velocity,
+        recency_index=recency_index,
     )
 
     # ----------------------------------------------------------------

@@ -23,18 +23,27 @@ def compute_gr(works_count, cited_by_count, h_index, i10_index=0,
                total_patents=0, books_authored=0, books_edited=0,
                unique_funders=0, patent_links=0,
                sdg_count=0, sdg_mean_confidence=0.0,
-               oa_percentage=0.0, societal_mentions=0):
+               oa_percentage=0.0, societal_mentions=0,
+               fwci=0.0, citation_velocity=0.0,
+               recency_index=0.0, topic_prominence_cagr=0.0):
 
     # P1 — Core Fundamental Research (25%)
     p1 = round(
-        S(h_index, 0.5) * 0.30 +
+        S(h_index, 3) * 0.30 +
         S(cited_by_count, 180) * 0.25 +
         S(works_count, 8) * 0.25 +
-        S(i10_index, 0.5) * 0.20, 1
+        S(i10_index, 3) * 0.20, 1
     )
 
-    # P2 — Real-Time Performance (30%) — neutral until FWCI/velocity data available
-    p2 = 50.0
+    # P2 — Real-Time Performance (30%)
+    if fwci > 0 or citation_velocity > 0 or recency_index > 0 or topic_prominence_cagr > 0:
+        p2_fwci = S(fwci, 0.3)               if fwci > 0               else 50.0
+        p2_vel  = S(citation_velocity, 12)    if citation_velocity > 0  else 50.0
+        p2_rec  = S(recency_index, 0.3)       if recency_index > 0      else 50.0
+        p2_cagr = S(topic_prominence_cagr, 3) if topic_prominence_cagr > 0 else 50.0
+        p2 = round(p2_fwci * 0.35 + p2_vel * 0.25 + p2_rec * 0.20 + p2_cagr * 0.20, 1)
+    else:
+        p2 = 50.0
 
     # P3 — Sustainability & Societal Impact (15%)
     p3 = round(
@@ -73,19 +82,22 @@ async def main():
             SELECT r.id, rm.publications, rm.total_citations, rm.h_index, rm.i10_index,
                    rm.total_patents, rm.books_authored, rm.books_edited,
                    rm.unique_funders, rm.patent_links,
-                   rm.sdg_count, rm.sdg_mean_confidence, rm.oa_percentage, rm.societal_mentions
+                   rm.sdg_count, rm.sdg_mean_confidence, rm.oa_percentage, rm.societal_mentions,
+                   rm.fwci, rm.citation_velocity, rm.recency_index, rm.topic_prominence_cagr
             FROM researchers r
             JOIN raw_metrics rm ON rm.researcher_id = r.id
         """))).fetchall()
 
         print(f"Recalculating {len(rows)} researchers...\n")
         for row in rows:
-            rid, pubs, cites, h, i10, patents, books_a, books_e, funders, pat_links, sdg_c, sdg_conf, oa_pct, soc = row
+            (rid, pubs, cites, h, i10, patents, books_a, books_e, funders, pat_links,
+             sdg_c, sdg_conf, oa_pct, soc, fwci, cit_vel, rec_idx, cagr) = row
             gr, tier, p1, p2, p3, p4, p5 = compute_gr(
                 pubs or 0, cites or 0, h or 0, i10 or 0,
                 patents or 0, books_a or 0, books_e or 0,
                 funders or 0, pat_links or 0,
-                sdg_c or 0, sdg_conf or 0.0, oa_pct or 0.0, soc or 0
+                sdg_c or 0, sdg_conf or 0.0, oa_pct or 0.0, soc or 0,
+                fwci or 0.0, cit_vel or 0.0, rec_idx or 0.0, cagr or 0.0
             )
             await session.execute(text("""
                 UPDATE gr_ratings
