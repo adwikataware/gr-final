@@ -19,7 +19,16 @@ from app.models.gr_rating import GRRating
 router = APIRouter(prefix="/api/v1/researchers", tags=["researchers"])
 
 BASE_URL = "https://api.openalex.org"
-EMAIL = "ayushwalunj1@gmail.com"
+EMAIL = "adwikataware@gmail.com"
+
+# OpenAlex returns wrong affiliations for these researchers — override manually
+AFFILIATION_OVERRIDES = {
+    "A5080409343": "VIT, Pune",
+    "A5093554874": "VIT, Pune",
+    "A5017173320": "VIT, Pune",
+    "A5000975435": "Techno India University, Kolkata",
+    "A5063648631": "Institute of Chemical Technology, Mumbai",
+}
 HEADERS = {"User-Agent": f"GRConnect/1.0 (mailto:{EMAIL})"}
 
 TIER_LABEL = {"GR-A": "Elite", "GR-B": "Premier", "GR-C": "Verified", "GR-D": "Verified", "GR-E": "Verified"}
@@ -226,14 +235,15 @@ async def claim_researcher(body: ClaimRequest, session: AsyncSession = Depends(g
     h_index = author.get("summary_stats", {}).get("h_index", 0)
     orcid_clean = (author.get("orcid") or "").replace("https://orcid.org/", "")
 
-    affiliation = ""
-    aff_list = author.get("affiliations", [])
-    if aff_list:
-        affiliation = aff_list[0].get("institution", {}).get("display_name", "")
+    affiliation = AFFILIATION_OVERRIDES.get(openalex_id, "")
     if not affiliation:
-        last = author.get("last_known_institutions", [])
-        if last:
-            affiliation = last[0].get("display_name", "")
+        aff_list = author.get("affiliations", [])
+        if aff_list:
+            affiliation = aff_list[0].get("institution", {}).get("display_name", "")
+        if not affiliation:
+            last = author.get("last_known_institutions", [])
+            if last:
+                affiliation = last[0].get("display_name", "")
 
     topics = [t.get("display_name", "") for t in author.get("topics", [])[:6] if t.get("display_name")]
     sdg_ids = extract_sdgs(author, topics)
