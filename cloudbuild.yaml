@@ -35,7 +35,7 @@ steps:
       - --memory=2Gi
       - --cpu=2
       - --add-cloudsql-instances=gr-connect-prod:asia-south1:gr-connect-db
-      - --set-env-vars=DATABASE_URL=postgresql+asyncpg://gruser:grpass@/gr_rating?host=/cloudsql/gr-connect-prod:asia-south1:gr-connect-db,REDIS_URL=redis://localhost:6379/0,OPENALEX_EMAIL=ayushwalunj1@gmail.com
+      - --set-env-vars=DATABASE_URL=postgresql+asyncpg://gruser:grpass@/gr_rating?host=/cloudsql/gr-connect-prod:asia-south1:gr-connect-db,REDIS_URL=redis://localhost:6379/0,OPENALEX_EMAIL=ayushwalunj1@gmail.com,GOOGLE_OAUTH_CLIENT_ID=$_GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET=$_GOOGLE_OAUTH_CLIENT_SECRET,GOOGLE_OAUTH_REFRESH_TOKEN=$_GOOGLE_OAUTH_REFRESH_TOKEN,GOOGLE_CALENDAR_EMAIL=$_GOOGLE_CALENDAR_EMAIL,RESEND_API_KEY=$_RESEND_API_KEY
       - --timeout=300
     id: deploy-backend
     waitFor: [push-backend]
@@ -140,6 +140,11 @@ substitutions:
   _NEXT_PUBLIC_FIREBASE_APP_ID: placeholder
   _NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: placeholder
   _GROQ_API_KEY: placeholder
+  _GOOGLE_OAUTH_CLIENT_ID: placeholder
+  _GOOGLE_OAUTH_CLIENT_SECRET: placeholder
+  _GOOGLE_OAUTH_REFRESH_TOKEN: placeholder
+  _GOOGLE_CALENDAR_EMAIL: placeholder
+  _RESEND_API_KEY: placeholder
 
 options:
   logging: CLOUD_LOGGING_ONLY
