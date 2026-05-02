@@ -39,6 +39,17 @@ RAW_METRICS = [
     ("42a9c38a-0068-46f7-9d80-ee26c151661e", 903,  19909,  69,  427,  2.8, 1100.0, 1.1, 30.0, 6, 0.60, 50.0,  45,  5, 10, 30,  6,  8),
 ]
 
+GR_RATINGS = [
+    ("0f0fec79-4927-453e-9824-dcaf78277bdc", 27.5, 64.0, 44.2,  0.0, 50.0, 37.7, "GR-D", 10),
+    ("ca909144-c5db-41f4-9e7d-b54fdcbd65db", 88.8, 86.6, 69.2, 54.0, 50.0, 74.4, "GR-B",  8),
+    ("bcf2e9b7-e4fe-45b3-a9fe-574033704992", 95.1, 87.6, 71.7, 50.7, 50.0, 75.9, "GR-B",  6),
+    ("28a0eb46-4587-4cba-b464-19ce762ad230", 99.3, 90.8, 83.9, 90.4, 50.0, 87.7, "GR-A",  1),
+    ("b8b0902b-2df0-4482-bf41-76821d403504", 13.6, 91.6, 81.3, 84.9, 50.0, 65.1, "GR-C",  2),
+    ("0744dc96-f7e7-4edc-8380-fc4c0eb3f25c", 97.9, 86.3, 83.1, 90.7, 50.0, 86.0, "GR-A",  3),
+    ("2538139c-b17e-4c24-9450-56b7e3f48b07", 70.9, 81.9, 64.3, 72.0, 50.0, 71.3, "GR-B",  7),
+    ("42a9c38a-0068-46f7-9d80-ee26c151661e", 98.2, 90.2, 83.0, 80.0, 50.0, 85.1, "GR-A",  4),
+]
+
 
 async def main():
     async with SessionLocal() as s:
@@ -106,7 +117,24 @@ async def main():
                    "funders": funders, "pat_links": pat_links})
 
         await s.commit()
-        print(f"Seeded {len(RESEARCHERS)} researchers + raw_metrics. recalculate_gr will now produce exact local scores.")
+        print(f"Seeded {len(RESEARCHERS)} researchers + raw_metrics.")
+
+        # Insert GR ratings
+        for g in GR_RATINGS:
+            rid, p1, p2, p3, p4, p5, gr, tier, rank = g
+            await s.execute(text("""
+                INSERT INTO gr_ratings (researcher_id, p1_score, p2_score, p3_score, p4_score, p5_score, gr_rating, tier, rank_overall)
+                VALUES (:rid, :p1, :p2, :p3, :p4, :p5, :gr, :tier, :rank)
+                ON CONFLICT (researcher_id) DO UPDATE SET
+                    p1_score=EXCLUDED.p1_score, p2_score=EXCLUDED.p2_score,
+                    p3_score=EXCLUDED.p3_score, p4_score=EXCLUDED.p4_score,
+                    p5_score=EXCLUDED.p5_score, gr_rating=EXCLUDED.gr_rating,
+                    tier=EXCLUDED.tier, rank_overall=EXCLUDED.rank_overall
+            """), {"rid": rid, "p1": p1, "p2": p2, "p3": p3, "p4": p4, "p5": p5,
+                   "gr": gr, "tier": tier, "rank": rank})
+
+        await s.commit()
+        print(f"Seeded GR ratings. recalculate_gr will now produce exact local scores.")
 
 
 asyncio.run(main())
