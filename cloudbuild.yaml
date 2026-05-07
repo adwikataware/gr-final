@@ -30,10 +30,10 @@ steps:
       - --region=asia-south1
       - --platform=managed
       - --no-allow-unauthenticated
-      - --min-instances=1
-      - --max-instances=100
-      - --memory=2Gi
-      - --cpu=2
+      - --min-instances=0
+      - --max-instances=4
+      - --memory=1Gi
+      - --cpu=1
       - --add-cloudsql-instances=$PROJECT_ID:asia-south1:gr-connect-db
       - --set-env-vars=DATABASE_URL=postgresql+asyncpg://gruser:grpass@/gr_rating?host=/cloudsql/$PROJECT_ID:asia-south1:gr-connect-db,REDIS_URL=redis://localhost:6379/0,OPENALEX_EMAIL=ayushwalunj1@gmail.com,GOOGLE_OAUTH_CLIENT_ID=$_GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET=$_GOOGLE_OAUTH_CLIENT_SECRET,GOOGLE_OAUTH_REFRESH_TOKEN=$_GOOGLE_OAUTH_REFRESH_TOKEN,GOOGLE_CALENDAR_EMAIL=$_GOOGLE_CALENDAR_EMAIL,RESEND_API_KEY=$_RESEND_API_KEY
       - --timeout=300
@@ -104,9 +104,9 @@ steps:
       - --region=asia-south1
       - --platform=managed
       - --no-allow-unauthenticated
-      - --min-instances=1
-      - --max-instances=50
-      - --memory=1Gi
+      - --min-instances=0
+      - --max-instances=4
+      - --memory=512Mi
       - --cpu=1
       - --timeout=300
       - --set-env-vars=GROQ_API_KEY=$_GROQ_API_KEY
