@@ -119,11 +119,32 @@ function ProfileHeader({ user, profile, roleBadge }: {
       {/* Banner */}
       <div
         className="relative h-36 sm:h-44 group cursor-pointer"
-        style={{ background: bannerUrl ? `url(${bannerUrl}) center/cover no-repeat` : "linear-gradient(135deg, #f5ede6 0%, #e8d5c4 50%, #d4b896 100%)" }}
+        style={bannerUrl ? { backgroundImage: `url(${bannerUrl})`, backgroundSize: "cover", backgroundPosition: "center" } : {}}
         onClick={() => bannerInputRef.current?.click()}
       >
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 bg-black/50 text-white text-xs font-medium px-4 py-2 rounded-full">
+        {/* Default banner — dark charcoal with subtle pattern */}
+        {!bannerUrl && (
+          <div className="absolute inset-0 bg-charcoal overflow-hidden">
+            {/* Decorative circles */}
+            <div className="absolute -top-8 -right-8 w-48 h-48 rounded-full bg-warm-brown/20" />
+            <div className="absolute -bottom-12 -left-6 w-40 h-40 rounded-full bg-warm-brown/10" />
+            <div className="absolute top-4 left-1/3 w-24 h-24 rounded-full bg-white/5" />
+            <div className="absolute bottom-2 right-1/4 w-16 h-16 rounded-full bg-warm-brown/15" />
+            {/* Subtle grid lines */}
+            <svg className="absolute inset-0 w-full h-full opacity-10" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+                  <path d="M 32 0 L 0 0 0 32" fill="none" stroke="white" strokeWidth="0.5"/>
+                </pattern>
+              </defs>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+            </svg>
+            {/* GR watermark */}
+            <div className="absolute right-6 bottom-4 font-serif text-6xl font-bold text-white/5 select-none">GR</div>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 bg-black/60 text-white text-xs font-medium px-4 py-2 rounded-full">
             {uploading === "banner"
               ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Uploading...</>
               : <><svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" /></svg>Change Banner</>}
@@ -133,49 +154,54 @@ function ProfileHeader({ user, profile, roleBadge }: {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f, "banner"); e.target.value = ""; }} />
       </div>
 
-      {/* Avatar + info */}
-      <div className="px-6 pb-6">
-        <div className="-mt-12 flex flex-col sm:flex-row sm:items-end gap-4">
-          <div className="relative shrink-0 group cursor-pointer w-24 h-24" onClick={() => avatarInputRef.current?.click()}>
+      {/* Avatar + info — sits below banner, no negative margin overlap */}
+      <div className="px-6 pt-0 pb-6">
+        {/* Avatar floats up over banner */}
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-10">
+          <div className="relative shrink-0 group cursor-pointer w-20 h-20" onClick={() => avatarInputRef.current?.click()}>
             {avatarUrl ? (
-              <img src={avatarUrl} alt={displayName} className="w-24 h-24 rounded-full border-4 border-white object-cover shadow-md bg-cream-100" />
+              <img src={avatarUrl} alt={displayName} className="w-20 h-20 rounded-full border-4 border-white object-cover shadow-lg" />
             ) : (
-              <div className="w-24 h-24 rounded-full border-4 border-white shadow-md bg-warm-brown/20 flex items-center justify-center text-warm-brown text-3xl font-semibold">
+              <div className="w-20 h-20 rounded-full border-4 border-white shadow-lg bg-warm-brown flex items-center justify-center text-white text-2xl font-bold">
                 {displayName.charAt(0).toUpperCase()}
               </div>
             )}
             <div className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-              <svg className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" /></svg>
+              <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" /></svg>
             </div>
             <input ref={avatarInputRef} type="file" accept="image/*" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f, "avatar"); e.target.value = ""; }} />
           </div>
 
-          <div className="flex-1 min-w-0 pt-2 sm:pt-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-serif text-2xl font-semibold text-charcoal">{displayName}</h1>
-              <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold tracking-wide ${roleBadge === "Expert" ? "bg-warm-brown/15 text-warm-brown-dark" : "bg-charcoal/8 text-charcoal"}`}>
-                {roleBadge}
-              </span>
-            </div>
-            {affiliation && <p className="text-sm text-text-muted mt-0.5">{affiliation}</p>}
-            {bio && <p className="mt-2 text-sm text-charcoal/75 leading-relaxed max-w-2xl line-clamp-2">{bio}</p>}
-            {expertise.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {expertise.slice(0, 4).map((field: string) => (
-                  <span key={field} className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-cream-bg border border-warm-brown/15 text-charcoal/70">{field}</span>
-                ))}
-                {expertise.length > 4 && <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-cream-bg border border-warm-brown/15 text-charcoal/50">+{expertise.length - 4} more</span>}
-              </div>
-            )}
-          </div>
+          {/* Spacer so edit button aligns right */}
+          <div className="flex-1" />
 
-          <Link href="/onboarding" className="self-start sm:self-end shrink-0 inline-flex items-center gap-1.5 px-5 py-2 border border-charcoal/20 text-charcoal text-sm font-medium rounded-full hover:bg-charcoal hover:text-white transition-colors">
+          <Link href="/onboarding" className="self-start sm:self-end shrink-0 mb-0.5 inline-flex items-center gap-1.5 px-4 py-1.5 border border-charcoal/20 text-charcoal text-sm font-medium rounded-full hover:bg-charcoal hover:text-white transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
             Edit Profile
           </Link>
+        </div>
+
+        {/* Name + details below avatar row */}
+        <div className="mt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-serif text-2xl font-semibold text-charcoal">{displayName}</h1>
+            <span className={`inline-flex items-center px-3 py-0.5 rounded-full text-xs font-semibold tracking-wide ${roleBadge === "Expert" ? "bg-warm-brown/15 text-warm-brown-dark" : "bg-charcoal/8 text-charcoal"}`}>
+              {roleBadge}
+            </span>
+          </div>
+          {affiliation && <p className="text-sm text-text-muted mt-0.5">{affiliation}</p>}
+          {bio && <p className="mt-1.5 text-sm text-charcoal/75 leading-relaxed max-w-2xl line-clamp-2">{bio}</p>}
+          {expertise.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {expertise.slice(0, 4).map((field: string) => (
+                <span key={field} className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-cream-bg border border-warm-brown/15 text-charcoal/70">{field}</span>
+              ))}
+              {expertise.length > 4 && <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-cream-bg border border-warm-brown/15 text-charcoal/50">+{expertise.length - 4} more</span>}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -595,18 +621,23 @@ export default function DashboardPage() {
     loadStats().catch(console.error);
   }, [user, profile?.role]);
 
-  // GR rating for expert
+  // GR rating for expert — look up by firebase_uid param
   useEffect(() => {
     if (!user || !isExpert) return;
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    fetch(`${apiUrl}/api/v1/discover?limit=200`)
+    fetch(`${apiUrl}/api/v1/discover?limit=100&firebase_uid=${user.uid}`)
       .then(r => r.json())
       .then(data => {
         const match = (data.researchers || []).find((r: { firebase_uid: string }) => r.firebase_uid === user.uid);
         if (match) {
           fetch(`${apiUrl}/api/v1/discover/${match.id}`)
             .then(r => r.json())
-            .then(d => setGrData({ gr_rating: d.gr_rating, tier: d.tier, p1_score: d.p1_score, p2_score: d.p2_score, p3_score: d.p3_score, p4_score: d.p4_score, p5_score: d.p5_score, rank_overall: d.rank }))
+            .then(d => setGrData({
+              gr_rating: d.gr_rating, tier: d.tier,
+              p1_score: d.p1_score, p2_score: d.p2_score,
+              p3_score: d.p3_score, p4_score: d.p4_score,
+              p5_score: d.p5_score, rank_overall: d.rank,
+            }))
             .catch(() => {});
         }
       }).catch(() => {});
@@ -658,9 +689,26 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 space-y-6">
 
           {/* GR Rating Card — expert only */}
-          {isExpert && grData && (
+          {isExpert && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
-              <GRRatingCard grData={grData} />
+              {grData ? (
+                <GRRatingCard grData={grData} />
+              ) : (
+                <div className="bg-white border border-cream-200 rounded-xl p-6 mb-6 flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-warm-brown/10 flex items-center justify-center text-warm-brown shrink-0">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-charcoal">GR Rating not assigned yet</p>
+                    <p className="text-xs text-text-muted mt-0.5">Complete your profile and claim your researcher record to get your GR score.</p>
+                  </div>
+                  <Link href="/onboarding" className="ml-auto shrink-0 px-4 py-2 bg-warm-brown text-white text-xs font-semibold rounded-full hover:bg-warm-brown-dark transition-colors">
+                    Claim Profile
+                  </Link>
+                </div>
+              )}
             </motion.div>
           )}
 
