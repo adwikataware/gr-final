@@ -400,7 +400,7 @@ export default function MessagesPage() {
         createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "conversations", activeConvId), {
-        lastMessage: "🔒 Encrypted message",
+        lastMessage: text,
         lastMessageAt: serverTimestamp(),
       });
     } catch {
@@ -494,8 +494,7 @@ export default function MessagesPage() {
                     </span>
                     <span className="text-[11px] text-text-muted shrink-0">{formatTime(conv.lastMessageAt)}</span>
                   </div>
-                  <p className="text-xs text-text-muted truncate mt-0.5 flex items-center gap-1">
-                    <LockIcon />
+                  <p className="text-xs text-text-muted truncate mt-0.5">
                     {conv.lastMessage || "No messages yet"}
                   </p>
                 </div>
