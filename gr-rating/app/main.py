@@ -30,6 +30,7 @@ app = FastAPI(title="GR Rating API", version="0.1.0", lifespan=lifespan)
 
 _allowed_origins = [
     "https://gr-connect-frontend-479016713032.asia-south1.run.app",
+    "https://gr-connect-frontend-671594421749.asia-south1.run.app",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
