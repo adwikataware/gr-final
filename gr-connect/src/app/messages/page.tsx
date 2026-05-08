@@ -181,14 +181,30 @@ function UserProfilePanel({ uid, name, photo, onClose }: { uid: string; name: st
           <div className="flex-1 overflow-y-auto">
             {/* Avatar + name */}
             <div className="px-5 py-6 flex flex-col items-center text-center border-b border-clay-muted/20">
-              {profile.photo ? (
+              {researcherId ? (
+                <Link href={`/expert/${researcherId}`} onClick={onClose}>
+                  {profile.photo ? (
+                    <img src={profile.photo} alt={profile.name} className="w-20 h-20 rounded-full object-cover shadow-md mb-3 hover:opacity-80 transition-opacity cursor-pointer" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-warm-brown/20 flex items-center justify-center text-warm-brown text-2xl font-semibold mb-3 hover:opacity-80 transition-opacity cursor-pointer">
+                      {profile.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                </Link>
+              ) : profile.photo ? (
                 <img src={profile.photo} alt={profile.name} className="w-20 h-20 rounded-full object-cover shadow-md mb-3" />
               ) : (
                 <div className="w-20 h-20 rounded-full bg-warm-brown/20 flex items-center justify-center text-warm-brown text-2xl font-semibold mb-3">
                   {profile.name.charAt(0).toUpperCase()}
                 </div>
               )}
-              <h3 className="font-serif text-lg font-semibold text-charcoal">{profile.name}</h3>
+              {researcherId ? (
+                <Link href={`/expert/${researcherId}`} onClick={onClose} className="font-serif text-lg font-semibold text-charcoal hover:text-warm-brown transition-colors">
+                  {profile.name}
+                </Link>
+              ) : (
+                <h3 className="font-serif text-lg font-semibold text-charcoal">{profile.name}</h3>
+              )}
               {profile.affiliation && <p className="text-xs text-text-muted mt-0.5">{profile.affiliation}</p>}
               <span className={`mt-2 px-3 py-0.5 rounded-full text-xs font-medium ${profile.role === "expert" ? "bg-warm-brown/15 text-warm-brown-dark" : "bg-charcoal/8 text-charcoal"}`}>
                 {profile.role === "expert" ? "Expert" : "Seeker"}
@@ -511,23 +527,11 @@ export default function MessagesPage() {
               )}
               <div>
                 <span className="text-sm font-semibold text-charcoal underline-offset-2 hover:underline">{otherUser.name}</span>
-                <p className="flex items-center gap-1 text-[11px] text-green-600 mt-0.5">
-                  <LockIcon />
-                  End-to-end encrypted
-                </p>
               </div>
             </button>
           </header>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
-            {/* encryption notice */}
-            <div className="flex justify-center">
-              <span className="flex items-center gap-1.5 text-[11px] text-text-muted bg-white border border-clay-muted/30 px-3 py-1.5 rounded-full">
-                <LockIcon />
-                Messages are end-to-end encrypted. Only you and {otherUser.name.split(" ")[0]} can read them.
-              </span>
-            </div>
-
             <AnimatePresence initial={false}>
               {messages.map((msg) => {
                 const isMine = msg.senderId === user.uid;
@@ -584,10 +588,6 @@ export default function MessagesPage() {
                 <SendIcon />
               </button>
             </div>
-            <p className="text-[10px] text-text-muted mt-2 text-center flex items-center justify-center gap-1">
-              <LockIcon />
-              Encrypted with NaCl · Messages never stored in plaintext
-            </p>
           </div>
         </section>
       ) : (

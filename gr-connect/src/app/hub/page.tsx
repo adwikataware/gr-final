@@ -829,7 +829,8 @@ export default function HubPage() {
       .then(r => r.json())
       .then(data => {
         const onboarded = (data.researchers || []).filter(
-          (r: Scholar & { openalex_id?: string }) => r.openalex_id?.startsWith("g_")
+          (r: Scholar & { openalex_id?: string; firebase_uid?: string }) =>
+            r.openalex_id?.startsWith("g_") && r.firebase_uid !== user?.uid
         );
         setScholars(onboarded.slice(0, 6));
       })
