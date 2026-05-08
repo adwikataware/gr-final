@@ -5,6 +5,7 @@ import { AuthProvider } from "@/lib/AuthContext";
 import Navbar from "@/components/Navbar";
 import MobileTabBar from "@/components/MobileTabBar";
 import ConditionalFooter from "@/components/ConditionalFooter";
+import RouteGuard from "@/components/RouteGuard";
 
 
 const inter = Inter({
@@ -61,7 +62,9 @@ export default function RootLayout({
       <body className="min-h-screen flex flex-col bg-cream-bg text-charcoal antialiased">
         <AuthProvider>
           <Navbar />
-          <main className="flex-1 pb-20 md:pb-0">{children}</main>
+          <RouteGuard>
+            <main className="flex-1 pb-20 md:pb-0">{children}</main>
+          </RouteGuard>
           <MobileTabBar />
 
           <ConditionalFooter />

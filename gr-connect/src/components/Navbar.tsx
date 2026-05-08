@@ -34,18 +34,22 @@ export default function Navbar() {
           >
             Vision
           </Link>
-          <Link
-            href="/discover"
-            className="text-sm text-charcoal/70 hover:text-charcoal transition-colors"
-          >
-            Find Experts
-          </Link>
-          <Link
-            href="/hub"
-            className="text-sm text-charcoal/70 hover:text-charcoal transition-colors"
-          >
-            Research Hub
-          </Link>
+          {isLoggedIn && (
+            <Link
+              href="/discover"
+              className="text-sm text-charcoal/70 hover:text-charcoal transition-colors"
+            >
+              Find Experts
+            </Link>
+          )}
+          {isLoggedIn && (
+            <Link
+              href="/hub"
+              className="text-sm text-charcoal/70 hover:text-charcoal transition-colors"
+            >
+              Research Hub
+            </Link>
+          )}
           {isLoggedIn && (
             <Link
               href="/messages"

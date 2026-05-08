@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/AuthContext";
 
 const tabs = [
   {
@@ -57,6 +58,9 @@ const tabs = [
 
 export default function MobileTabBar() {
   const pathname = usePathname();
+  const { isLoggedIn } = useAuth();
+
+  if (!isLoggedIn) return null;
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-t border-clay-muted/30 safe-area-bottom">
