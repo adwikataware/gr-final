@@ -91,6 +91,7 @@ export default function MyBookingsPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>("upcoming");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const isExpert = profile?.role === "expert";
 
@@ -123,6 +124,7 @@ export default function MyBookingsPage() {
 
   async function handleAccept(booking: Booking) {
     setActionLoading(booking.id);
+    setActionError(null);
     try {
       // 1. Create real Google Calendar event + Meet link
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -172,12 +174,7 @@ export default function MyBookingsPage() {
       }
     } catch (err) {
       console.error("Accept booking error:", err);
-      // If Meet creation fails, still confirm the booking so expert can share link manually
-      await updateDoc(doc(db, "bookings", booking.id), {
-        status: "confirmed",
-        meetLink: "",
-        confirmedAt: serverTimestamp(),
-      }).catch(() => {});
+      setActionError("Could not create Meet link. Please try accepting again.");
     } finally {
       setActionLoading(null);
     }
@@ -189,55 +186,6 @@ export default function MyBookingsPage() {
       await updateDoc(doc(db, "bookings", bookingId), { status: "cancelled" });
     } catch (err) {
       console.error(err);
-    } finally {
-      setActionLoading(null);
-    }
-  }
-
-  async function handleGenerateMeetLink(booking: Booking) {
-    setActionLoading(booking.id);
-    try {
-      const meetLink = await createRealMeetLink(booking);
-      await updateDoc(doc(db, "bookings", booking.id), { meetLink });
-
-      // Send email with meet link to both participants
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const emailHtml = (name: string) => `
-        <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px">
-          <h2 style="color:#3d2b1f">Your Meeting Link is Ready</h2>
-          <p>Hi ${name},</p>
-          <p>Your consultation has been confirmed and the meeting link is ready.</p>
-          <table style="width:100%;border-collapse:collapse;margin:16px 0;border:1px solid #eee;border-radius:8px">
-            <tr style="background:#faf8f5"><td style="padding:10px 16px;color:#666;font-size:14px">Expert</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.expertName}</td></tr>
-            <tr><td style="padding:10px 16px;color:#666;font-size:14px">Date</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.date}</td></tr>
-            <tr style="background:#faf8f5"><td style="padding:10px 16px;color:#666;font-size:14px">Time</td><td style="padding:10px 16px;font-weight:600;font-size:14px">${booking.time}</td></tr>
-          </table>
-          <a href="${meetLink}" style="display:inline-block;background:#8B5E3C;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;margin:8px 0">
-            Join Google Meet →
-          </a>
-          <p style="margin-top:12px;color:#888;font-size:13px">Or copy: ${meetLink}</p>
-          <hr style="margin:24px 0;border:none;border-top:1px solid #eee"/>
-          <p style="color:#aaa;font-size:12px">GR Connect — Research Consultation Platform</p>
-        </div>
-      `;
-
-      const recipients: { to: string; name: string }[] = [];
-      if (booking.seekerEmail) recipients.push({ to: booking.seekerEmail, name: booking.seekerName });
-      if (booking.expertEmail) recipients.push({ to: booking.expertEmail, name: booking.expertName });
-
-      for (const r of recipients) {
-        fetch(`${apiUrl}/api/v1/meetings/send-email`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: [r.to],
-            subject: `Meeting Link — ${booking.date} at ${booking.time}`,
-            html: emailHtml(r.name),
-          }),
-        }).catch(() => {});
-      }
-    } catch (err) {
-      console.error("Meet link generation error:", err);
     } finally {
       setActionLoading(null);
     }
@@ -386,21 +334,26 @@ export default function MyBookingsPage() {
 
                       {/* Expert actions for pending */}
                       {isExpert && isPending && (
-                        <div className="flex items-center gap-3 mt-4">
-                          <button
-                            onClick={() => handleAccept(booking)}
-                            disabled={actionLoading === booking.id}
-                            className="flex-1 py-2.5 bg-warm-brown text-white text-sm font-semibold rounded-full hover:bg-warm-brown-dark transition-colors disabled:opacity-50"
-                          >
-                            {actionLoading === booking.id ? "Confirming..." : "Accept & Confirm"}
-                          </button>
-                          <button
-                            onClick={() => handleReject(booking.id)}
-                            disabled={actionLoading === booking.id}
-                            className="flex-1 py-2.5 border border-red-200 text-red-600 text-sm font-semibold rounded-full hover:bg-red-50 transition-colors disabled:opacity-50"
-                          >
-                            Decline
-                          </button>
+                        <div className="mt-4">
+                          {actionError && actionLoading === null && (
+                            <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-3">{actionError}</p>
+                          )}
+                          <div className="flex items-center gap-3">
+                            <button
+                              onClick={() => handleAccept(booking)}
+                              disabled={actionLoading === booking.id}
+                              className="flex-1 py-2.5 bg-warm-brown text-white text-sm font-semibold rounded-full hover:bg-warm-brown-dark transition-colors disabled:opacity-50"
+                            >
+                              {actionLoading === booking.id ? "Confirming..." : "Accept & Confirm"}
+                            </button>
+                            <button
+                              onClick={() => handleReject(booking.id)}
+                              disabled={actionLoading === booking.id}
+                              className="flex-1 py-2.5 border border-red-200 text-red-600 text-sm font-semibold rounded-full hover:bg-red-50 transition-colors disabled:opacity-50"
+                            >
+                              Decline
+                            </button>
+                          </div>
                         </div>
                       )}
 
@@ -429,16 +382,8 @@ export default function MyBookingsPage() {
                               </svg>
                               Join Meet
                             </a>
-                          ) : isExpert ? (
-                            <button
-                              onClick={() => handleGenerateMeetLink(booking)}
-                              disabled={actionLoading === booking.id}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-warm-brown text-white text-xs font-semibold rounded-full hover:bg-warm-brown-dark transition-colors disabled:opacity-50"
-                            >
-                              {actionLoading === booking.id ? "Generating..." : "Generate Meet Link"}
-                            </button>
                           ) : (
-                            <span className="text-xs text-text-muted italic">Meet link pending</span>
+                            <span className="text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-full">Meet link being set up...</span>
                           )}
                           <Link
                             href={`/booking/confirm?id=${booking.id}`}
