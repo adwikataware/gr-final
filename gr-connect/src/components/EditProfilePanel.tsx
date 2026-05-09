@@ -32,11 +32,14 @@ export default function EditProfilePanel({ open, onClose }: Props) {
   const [name, setName] = useState("");
   const [affiliation, setAffiliation] = useState("");
   const [bio, setBio] = useState("");
+  const [orcid, setOrcid] = useState("");
   const [expertise, setExpertise] = useState<string[]>([]);
   const [sdgs, setSdgs] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [orcidFetching, setOrcidFetching] = useState(false);
+  const [orcidMsg, setOrcidMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   const isExpert = profile?.role === "expert";
 
@@ -49,12 +52,14 @@ export default function EditProfilePanel({ open, onClose }: Props) {
     setExpertise(profile?.expertise || []);
     setSaved(false);
     setError("");
+    setOrcidMsg(null);
 
-    // Load SDGs from Firestore (stored separately)
+    // Load SDGs and ORCID from Firestore
     getDoc(doc(db, "users", user.uid)).then(snap => {
       if (snap.exists()) {
         const data = snap.data();
         if (data.sdg_ids) setSdgs(data.sdg_ids);
+        if (data.orcid) setOrcid(data.orcid);
       }
     }).catch(() => {});
   }, [open, user, profile]);
@@ -71,13 +76,44 @@ export default function EditProfilePanel({ open, onClose }: Props) {
     );
   }
 
+  async function fetchOrcidDetails() {
+    const clean = orcid.trim().replace("https://orcid.org/", "").replace(/\/$/, "");
+    if (!clean) { setOrcidMsg({ text: "Enter an ORCID ID first.", ok: false }); return; }
+    setOrcidFetching(true);
+    setOrcidMsg(null);
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const res = await fetch(`${apiUrl}/api/v1/orcid-lookup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orcid: clean }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setOrcidMsg({ text: err.detail || "No researcher found with this ORCID.", ok: false });
+        return;
+      }
+      const data = await res.json();
+      if (data.name) setName(data.name);
+      if (data.affiliation) setAffiliation(data.affiliation);
+      if (data.bio) setBio(data.bio);
+      if (data.topics?.length) setExpertise(data.topics.slice(0, 6));
+      setOrcidMsg({ text: `Found: ${data.name} — ${data.works_count ?? "?"} publications, h-index ${data.h_index ?? "?"}`, ok: true });
+    } catch {
+      setOrcidMsg({ text: "Failed to fetch ORCID details. Try again.", ok: false });
+    } finally {
+      setOrcidFetching(false);
+    }
+  }
+
   async function handleSave() {
     if (!user) return;
     setSaving(true);
     setError("");
     try {
+      const orcidClean = orcid.trim().replace("https://orcid.org/", "").replace(/\/$/, "");
       await updateUserProfile({ displayName: name, affiliation, bio, expertise });
-      await setDoc(doc(db, "users", user.uid), { sdg_ids: sdgs }, { merge: true });
+      await setDoc(doc(db, "users", user.uid), { sdg_ids: sdgs, orcid: orcidClean }, { merge: true });
 
       // Sync to backend if expert
       if (isExpert) {
@@ -94,6 +130,7 @@ export default function EditProfilePanel({ open, onClose }: Props) {
             topics: expertise,
             sdg_ids: sdgs,
             photo_url: profile?.photoURL || "",
+            orcid: orcid.trim().replace("https://orcid.org/", "").replace(/\/$/, ""),
           }),
         }).catch(() => {});
       }
@@ -165,6 +202,36 @@ export default function EditProfilePanel({ open, onClose }: Props) {
                   placeholder="e.g. MIT, VIT Pune, Independent Researcher"
                   className="w-full px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors"
                 />
+              </div>
+
+              {/* ORCID */}
+              <div>
+                <label className="block text-xs font-semibold text-charcoal/60 uppercase tracking-wide mb-1.5">
+                  ORCID iD
+                  <span className="normal-case font-normal text-text-muted ml-1">— fetches your publication details</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={orcid}
+                    onChange={e => { setOrcid(e.target.value); setOrcidMsg(null); }}
+                    placeholder="0000-0000-0000-0000"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-clay-muted/50 bg-cream-bg text-sm text-charcoal placeholder:text-text-muted/50 focus:outline-none focus:border-warm-brown transition-colors font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={fetchOrcidDetails}
+                    disabled={orcidFetching}
+                    className="px-4 py-2.5 rounded-xl bg-warm-brown text-white text-xs font-semibold shrink-0 hover:bg-warm-brown-dark disabled:opacity-50 transition-colors"
+                  >
+                    {orcidFetching ? "..." : "Fetch"}
+                  </button>
+                </div>
+                {orcidMsg && (
+                  <p className={`mt-1.5 text-xs px-3 py-1.5 rounded-lg ${orcidMsg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                    {orcidMsg.text}
+                  </p>
+                )}
               </div>
 
               {/* Bio */}

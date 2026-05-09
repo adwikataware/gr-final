@@ -406,8 +406,20 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                 )}
 
                 {expert.orcid && (
-                  <div className="flex items-center gap-2 mt-2 text-xs text-text-muted">
-                    <span className="font-mono bg-warm-brown/10 px-2 py-0.5 rounded text-warm-brown-dark">ORCID: {expert.orcid}</span>
+                  <div className="flex items-center gap-2 mt-2">
+                    <a
+                      href={`https://orcid.org/${expert.orcid}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#A6CE39]/10 border border-[#A6CE39]/40 hover:bg-[#A6CE39]/20 transition-colors"
+                    >
+                      <svg viewBox="0 0 256 256" className="w-3.5 h-3.5 shrink-0" fill="none">
+                        <circle cx="128" cy="128" r="128" fill="#A6CE39"/>
+                        <path d="M86 76h20v104H86zm48 0h36c38 0 58 20 58 52s-20 52-58 52h-36zm20 18v68h16c24 0 38-12 38-34s-14-34-38-34z" fill="white"/>
+                        <circle cx="96" cy="60" r="10" fill="white"/>
+                      </svg>
+                      <span className="text-xs font-mono font-medium text-[#5a8a00]">{expert.orcid}</span>
+                    </a>
                   </div>
                 )}
 
