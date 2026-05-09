@@ -36,14 +36,14 @@ export default function OnboardingPage() {
   const router = useRouter();
 
   const [step, setStep] = useState(1);
-  const [affiliation, setAffiliation] = useState("");
-  const [bio, setBio] = useState("");
+  const [affiliation, setAffiliation] = useState(profile?.affiliation || "");
+  const [bio, setBio] = useState(profile?.bio || "");
   const [orcid, setOrcid] = useState("");
   const [orcidStatus, setOrcidStatus] = useState<"idle" | "fetching" | "found" | "notfound" | "taken">("idle");
   const [orcidData, setOrcidData] = useState<OrcidData | null>(null);
   const [claimedProfile, setClaimedProfile] = useState<OrcidData | null>(null); // seed profile found
   const [showClaimConfirm, setShowClaimConfirm] = useState(false);
-  const [expertise, setExpertise] = useState<string[]>([]);
+  const [expertise, setExpertise] = useState<string[]>(profile?.expertise || []);
   const [sdgs, setSdgs] = useState<number[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

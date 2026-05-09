@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { db, storage } from "@/lib/firebase";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import EditProfilePanel from "@/components/EditProfilePanel";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -61,10 +62,11 @@ interface Connection {
 /* ------------------------------------------------------------------ */
 /*  Profile Header                                                     */
 /* ------------------------------------------------------------------ */
-function ProfileHeader({ user, profile, roleBadge }: {
+function ProfileHeader({ user, profile, roleBadge, onEditClick }: {
   user: { uid: string; displayName?: string | null; photoURL?: string | null };
   profile: UserProfile | null;
   roleBadge: string;
+  onEditClick: () => void;
 }) {
   const bannerInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -176,12 +178,12 @@ function ProfileHeader({ user, profile, roleBadge }: {
           {/* Spacer so edit button aligns right */}
           <div className="flex-1" />
 
-          <Link href="/onboarding" className="self-start sm:self-end shrink-0 mb-0.5 inline-flex items-center gap-1.5 px-4 py-1.5 border border-charcoal/20 text-charcoal text-sm font-medium rounded-full hover:bg-charcoal hover:text-white transition-colors">
+          <button onClick={onEditClick} className="self-start sm:self-end shrink-0 mb-0.5 inline-flex items-center gap-1.5 px-4 py-1.5 border border-charcoal/20 text-charcoal text-sm font-medium rounded-full hover:bg-charcoal hover:text-white transition-colors">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
             Edit Profile
-          </Link>
+          </button>
         </div>
 
         {/* Name + details below avatar row */}
@@ -588,6 +590,7 @@ export default function DashboardPage() {
   const [recommendedExperts, setRecommendedExperts] = useState<Expert[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
   const [grData, setGrData] = useState<GRData | null>(null);
+  const [editPanelOpen, setEditPanelOpen] = useState(false);
 
   const isExpert = profile?.role === "expert";
 
@@ -676,7 +679,7 @@ export default function DashboardPage() {
 
       {/* Profile Header */}
       <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-        <ProfileHeader user={user} profile={profile} roleBadge={roleBadge} />
+        <ProfileHeader user={user} profile={profile} roleBadge={roleBadge} onEditClick={() => setEditPanelOpen(true)} />
       </motion.div>
 
       {/* Profile Completeness */}
@@ -839,10 +842,10 @@ export default function DashboardPage() {
                   <svg className="w-4 h-4 shrink-0 text-warm-brown" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>
                   <span className="text-sm font-medium text-charcoal">Messages</span>
                 </Link>
-                <Link href="/onboarding" className="flex items-center gap-3 px-4 py-3 bg-cream-bg border border-clay-muted/30 rounded-xl hover:border-warm-brown/30 hover:bg-warm-brown/5 transition-colors">
+                <button onClick={() => setEditPanelOpen(true)} className="flex items-center gap-3 px-4 py-3 bg-cream-bg border border-clay-muted/30 rounded-xl hover:border-warm-brown/30 hover:bg-warm-brown/5 transition-colors w-full text-left">
                   <svg className="w-4 h-4 shrink-0 text-warm-brown" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                   <span className="text-sm font-medium text-charcoal">Edit Profile</span>
-                </Link>
+                </button>
               </div>
             </div>
           </motion.div>
@@ -882,6 +885,8 @@ export default function DashboardPage() {
           </motion.div>
         </div>
       </div>
+
+      <EditProfilePanel open={editPanelOpen} onClose={() => setEditPanelOpen(false)} />
     </div>
   );
 }
