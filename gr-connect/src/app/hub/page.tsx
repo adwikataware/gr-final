@@ -29,6 +29,7 @@ interface Post {
   createdAt: { toDate?: () => Date } | null;
   postType: string;
   imageUrls?: string[];
+  fileTypes?: string[]; // parallel to imageUrls: "image" | "pdf" | "file"
 }
 
 interface Comment {
@@ -699,18 +700,52 @@ function PostCard({
           {/* Content */}
           <p className="text-sm text-charcoal/85 leading-relaxed mb-3 whitespace-pre-wrap">{post.content}</p>
 
-          {/* Images */}
-          {post.imageUrls && post.imageUrls.length > 0 && (
-            <div className={`mb-4 grid gap-2 ${post.imageUrls.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
-              {post.imageUrls.map((url, i) => (
-                <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                  <img src={url} alt={`attachment ${i + 1}`}
-                    className={`w-full rounded-xl object-cover border border-clay-muted/20 hover:opacity-90 transition-opacity cursor-zoom-in ${post.imageUrls!.length === 1 ? "max-h-96" : "h-48"}`}
-                  />
-                </a>
-              ))}
-            </div>
-          )}
+          {/* Images — shown inline */}
+          {post.imageUrls && post.imageUrls.length > 0 && (() => {
+            const imageItems = post.imageUrls
+              .map((url, i) => ({ url, type: post.fileTypes?.[i] ?? "image" }))
+              .filter(f => f.type === "image");
+            const fileItems = post.imageUrls
+              .map((url, i) => ({ url, type: post.fileTypes?.[i] ?? "image", name: `Document ${i + 1}` }))
+              .filter(f => f.type !== "image");
+
+            return (
+              <>
+                {imageItems.length > 0 && (
+                  <div className={`mb-3 grid gap-2 ${imageItems.length === 1 ? "grid-cols-1" : imageItems.length === 2 ? "grid-cols-2" : "grid-cols-2"}`}>
+                    {imageItems.map((item, i) => (
+                      <a key={i} href={item.url} target="_blank" rel="noopener noreferrer" className="block rounded-xl overflow-hidden border border-clay-muted/20 bg-cream-100">
+                        <img
+                          src={item.url}
+                          alt={`image ${i + 1}`}
+                          className={`w-full object-cover hover:opacity-95 transition-opacity ${imageItems.length === 1 ? "max-h-[480px]" : "h-52"}`}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {fileItems.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {fileItems.map((item, i) => (
+                      <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-3 py-2 bg-cream-50 border border-clay-muted/30 rounded-xl hover:bg-cream-100 hover:border-warm-brown/30 transition-colors group">
+                        <svg className="w-4 h-4 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
+                          <path d="M14 2v6h6"/>
+                          <path fill="white" d="M9 13h6M9 17h4" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        <span className="text-xs font-medium text-charcoal group-hover:text-warm-brown transition-colors">PDF</span>
+                        <svg className="w-3 h-3 text-text-muted group-hover:text-warm-brown transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>
+                        </svg>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Tags */}
           {post.tags.length > 0 && (
@@ -1005,7 +1040,7 @@ function NetworkTab({ currentUid, onPeekUid }: { currentUid: string; onPeekUid: 
 /* ------------------------------------------------------------------ */
 interface PostComposerProps {
   onClose: () => void;
-  onSubmit: (content: string, type: string, files: File[], previews: string[]) => Promise<void>;
+  onSubmit: (content: string, type: string, files: File[], previews: string[], fileTypes: string[]) => Promise<void>;
 }
 
 function PostComposerModal({ onClose, onSubmit }: PostComposerProps) {
@@ -1045,7 +1080,8 @@ function PostComposerModal({ onClose, onSubmit }: PostComposerProps) {
   async function handleSubmit() {
     if ((!content.trim() && files.length === 0) || submitting) return;
     setSubmitting(true);
-    onSubmit(content.trim(), postType, files, previews);
+    const fileTypes = files.map(f => f.type.startsWith("image/") ? "image" : "pdf");
+    onSubmit(content.trim(), postType, files, previews, fileTypes);
     onClose();
   }
 
@@ -1284,7 +1320,7 @@ export default function HubPage() {
     }
   }
 
-  async function handlePost(content: string, postType: string, files: File[], blobPreviews: string[]) {
+  async function handlePost(content: string, postType: string, files: File[], blobPreviews: string[], fileTypes: string[]) {
     if (!user || !profile) return;
     const tags = extractTags(content);
     const docRef = await addDoc(collection(db, "posts"), {
@@ -1294,6 +1330,7 @@ export default function HubPage() {
       authorAffiliation: profile.affiliation || "",
       content, tags, likes: [], commentCount: 0, postType,
       imageUrls: blobPreviews,
+      fileTypes,
       createdAt: serverTimestamp(),
     });
     if (files.length > 0) {
@@ -1305,7 +1342,7 @@ export default function HubPage() {
           await uploadBytes(ref, file, { contentType: file.type });
           return getDownloadURL(ref);
         }));
-        await updateDoc(docRef, { imageUrls: realUrls });
+        await updateDoc(docRef, { imageUrls: realUrls, fileTypes });
         blobPreviews.forEach(URL.revokeObjectURL);
       } catch { /* silent */ }
     }
