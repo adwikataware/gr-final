@@ -1353,18 +1353,26 @@ export default function HubPage() {
     });
 
     if (files.length > 0) {
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("upload timeout")), 20000)
+      );
       try {
-        const realUrls = await Promise.all(files.map(async (file, i) => {
-          const ext = file.name.split(".").pop() || "bin";
-          const path = `hub-posts/${user.uid}/${docRef.id}_${i}.${ext}`;
-          const ref = storageRef(storage, path);
-          await uploadBytes(ref, file, { contentType: file.type });
-          return getDownloadURL(ref);
-        }));
-        // Patch with real Firebase Storage URLs — now visible to all users
+        const realUrls = await Promise.race([
+          Promise.all(files.map(async (file, i) => {
+            const ext = file.name.split(".").pop() || "bin";
+            const path = `hub-posts/${user.uid}/${docRef.id}_${i}.${ext}`;
+            const ref = storageRef(storage, path);
+            await uploadBytes(ref, file, { contentType: file.type });
+            return getDownloadURL(ref);
+          })),
+          timeout,
+        ]);
         await updateDoc(docRef, { imageUrls: realUrls, fileTypes });
         blobPreviews.forEach(URL.revokeObjectURL);
-      } catch { /* upload failed silently — post still visible without attachments */ }
+      } catch (err) {
+        console.error("Upload failed:", err);
+        // Post is already saved — just without attachments
+      }
     }
   }
 
