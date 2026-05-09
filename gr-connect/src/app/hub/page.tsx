@@ -394,33 +394,46 @@ function SendPostModal({ post, currentUid, currentProfile, onClose }: SendPostMo
   async function sendToUser(targetUid: string) {
     setSending(targetUid);
     try {
-      const ids = [currentUid, targetUid].sort();
-      const convId = ids.join("_");
-      const convRef = doc(db, "conversations", convId);
-      const convSnap = await getDoc(convRef);
       const myName = currentProfile?.displayName || "User";
       const myPhoto = currentProfile?.photoURL || "";
       const target = connections.find(c => c.uid === targetUid);
 
-      if (!convSnap.exists()) {
-        await setDoc(convRef, {
-          participants: ids,
+      // Find existing conversation — same pattern as expert page (query, not hardcoded ID)
+      const q = query(
+        collection(db, "conversations"),
+        where("participants", "array-contains", currentUid)
+      );
+      const snap = await getDocs(q);
+      const existing = snap.docs.find(d =>
+        (d.data().participants as string[]).includes(targetUid)
+      );
+
+      let convId: string;
+      if (existing) {
+        convId = existing.id;
+        await updateDoc(doc(db, "conversations", convId), {
+          lastMessage: "📎 Shared a post",
+          lastMessageAt: serverTimestamp(),
+        });
+      } else {
+        const convRef = await addDoc(collection(db, "conversations"), {
+          participants: [currentUid, targetUid],
           participantNames: { [currentUid]: myName, [targetUid]: target?.name || "User" },
           participantPhotos: { [currentUid]: myPhoto, [targetUid]: target?.photo || "" },
-          lastMessage: `📎 Shared a post: "${post.content.slice(0, 60)}..."`,
+          lastMessage: "📎 Shared a post",
           lastMessageAt: serverTimestamp(),
           createdAt: serverTimestamp(),
         });
-      } else {
-        await updateDoc(convRef, {
-          lastMessage: `📎 Shared a post`,
-          lastMessageAt: serverTimestamp(),
-        });
+        convId = convRef.id;
       }
 
       await addDoc(collection(db, "conversations", convId, "messages"), {
         senderId: currentUid,
-        text: `📎 Shared a post:\n\n"${post.content.slice(0, 200)}${post.content.length > 200 ? "..." : ""}"`,
+        type: "shared_post",
+        text: "📎 Shared a post",
+        postContent: post.content,
+        postAuthor: post.authorName,
+        postType: post.postType,
         createdAt: serverTimestamp(),
       });
 

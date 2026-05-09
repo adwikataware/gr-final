@@ -32,9 +32,13 @@ import {
 interface RawMessage {
   id: string;
   senderId: string;
-  // each message stores two ciphertexts: one for recipient, one for sender
   cipherForRecipient?: string;
   cipherForSender?: string;
+  type?: string;
+  text?: string;
+  postContent?: string;
+  postAuthor?: string;
+  postType?: string;
   createdAt: { seconds: number } | null;
 }
 
@@ -42,6 +46,10 @@ interface Message {
   id: string;
   senderId: string;
   text: string;
+  type?: string;
+  postContent?: string;
+  postAuthor?: string;
+  postType?: string;
   createdAt: { seconds: number } | null;
 }
 
@@ -333,6 +341,19 @@ export default function MessagesPage() {
     const otherPubKey = otherPublicKeys[otherId];
 
     const decrypted: Message[] = rawMessages.map((raw) => {
+      // Shared post — no encryption, render as card
+      if (raw.type === "shared_post") {
+        return {
+          id: raw.id,
+          senderId: raw.senderId,
+          text: raw.text || "",
+          type: "shared_post",
+          postContent: raw.postContent,
+          postAuthor: raw.postAuthor,
+          postType: raw.postType,
+          createdAt: raw.createdAt,
+        };
+      }
       let text = "[encrypted]";
       if (myPrivKey) {
         if (raw.senderId === user.uid) {
@@ -534,6 +555,50 @@ export default function MessagesPage() {
             <AnimatePresence initial={false}>
               {messages.map((msg) => {
                 const isMine = msg.senderId === user.uid;
+
+                if (msg.type === "shared_post") {
+                  return (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                    >
+                      <div className="max-w-sm w-full">
+                        {/* "Shared a post" label */}
+                        <p className={`text-[10px] text-text-muted mb-1 ${isMine ? "text-right" : ""}`}>
+                          {isMine ? "You shared a post" : "Shared a post"}
+                        </p>
+                        {/* Post card */}
+                        <div className="bg-white border border-clay-muted/30 rounded-2xl overflow-hidden shadow-sm">
+                          {msg.postType && msg.postType !== "General" && (
+                            <div className="px-4 pt-3 pb-1">
+                              <span className="px-2 py-0.5 text-[10px] font-semibold italic font-serif rounded-full bg-warm-brown/10 text-warm-brown">
+                                {msg.postType}
+                              </span>
+                            </div>
+                          )}
+                          <div className="px-4 py-3">
+                            {msg.postAuthor && (
+                              <p className="text-xs font-semibold text-charcoal mb-1.5">{msg.postAuthor}</p>
+                            )}
+                            <p className="text-sm text-charcoal/85 leading-relaxed whitespace-pre-wrap line-clamp-5">
+                              {msg.postContent}
+                            </p>
+                          </div>
+                          <div className="px-4 py-2.5 border-t border-clay-muted/20 bg-cream-50">
+                            <p className="text-[10px] text-text-muted">Shared via GR Connect · Research Hub</p>
+                          </div>
+                        </div>
+                        <p className={`text-[10px] text-text-muted mt-1 ${isMine ? "text-right" : ""}`}>
+                          {formatTime(msg.createdAt)}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                }
+
                 return (
                   <motion.div
                     key={msg.id}
