@@ -730,6 +730,7 @@ function PostCard({
                   <div className="flex flex-wrap gap-2 mb-3">
                     {fileItems.map((item, i) => (
                       <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
                         className="flex items-center gap-2 px-3 py-2 bg-cream-50 border border-clay-muted/30 rounded-xl hover:bg-cream-100 hover:border-warm-brown/30 transition-colors group">
                         <svg className="w-4 h-4 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"/>
@@ -1338,16 +1339,19 @@ export default function HubPage() {
   async function handlePost(content: string, postType: string, files: File[], blobPreviews: string[], fileTypes: string[]) {
     if (!user || !profile) return;
     const tags = extractTags(content);
+
+    // Store empty arrays first — blob URLs are local-only and invisible to other users
     const docRef = await addDoc(collection(db, "posts"), {
       authorUid: user.uid,
       authorName: profile.displayName || "Anonymous",
       authorAvatar: profile.photoURL || avatarFallback(profile.displayName || "A"),
       authorAffiliation: profile.affiliation || "",
       content, tags, likes: [], commentCount: 0, postType,
-      imageUrls: blobPreviews,
-      fileTypes,
+      imageUrls: [],
+      fileTypes: files.length > 0 ? fileTypes : [],
       createdAt: serverTimestamp(),
     });
+
     if (files.length > 0) {
       try {
         const realUrls = await Promise.all(files.map(async (file, i) => {
@@ -1357,9 +1361,10 @@ export default function HubPage() {
           await uploadBytes(ref, file, { contentType: file.type });
           return getDownloadURL(ref);
         }));
+        // Patch with real Firebase Storage URLs — now visible to all users
         await updateDoc(docRef, { imageUrls: realUrls, fileTypes });
         blobPreviews.forEach(URL.revokeObjectURL);
-      } catch { /* silent */ }
+      } catch { /* upload failed silently — post still visible without attachments */ }
     }
   }
 

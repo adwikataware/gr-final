@@ -213,7 +213,7 @@ function ProfileHeader({ user, profile, roleBadge, onEditClick }: {
 /* ------------------------------------------------------------------ */
 /*  Profile Completeness Bar                                           */
 /* ------------------------------------------------------------------ */
-function ProfileCompleteness({ profile }: { profile: UserProfile | null }) {
+function ProfileCompleteness({ profile, onEditClick }: { profile: UserProfile | null; onEditClick: () => void }) {
   const checks = [
     { label: "Name", done: !!profile?.displayName },
     { label: "Affiliation", done: !!profile?.affiliation },
@@ -241,11 +241,11 @@ function ProfileCompleteness({ profile }: { profile: UserProfile | null }) {
       </div>
       <div className="flex flex-wrap gap-2">
         {checks.filter(c => !c.done).map(c => (
-          <Link key={c.label} href="/onboarding"
+          <button key={c.label} onClick={onEditClick}
             className="flex items-center gap-1 text-xs text-text-muted border border-clay-muted/30 px-2.5 py-1 rounded-full hover:border-warm-brown/40 hover:text-warm-brown transition-colors">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
             Add {c.label}
-          </Link>
+          </button>
         ))}
       </div>
     </div>
@@ -684,7 +684,7 @@ export default function DashboardPage() {
 
       {/* Profile Completeness */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-        <ProfileCompleteness profile={profile} />
+        <ProfileCompleteness profile={profile} onEditClick={() => setEditPanelOpen(true)} />
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { use, useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -671,10 +672,11 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
               </div>
             </motion.div>
 
-            {/* ── AI CHAT MODAL ── */}
-            <AnimatePresence>
-              {aiExpanded && (
+            {/* ── AI CHAT MODAL — rendered via portal so it sits above ALL page stacking contexts ── */}
+            {aiExpanded && typeof document !== "undefined" && createPortal(
+              <AnimatePresence>
                 <motion.div
+                  key="ai-modal"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -782,8 +784,8 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                       </div>
                     </motion.div>
                   </motion.div>
-              )}
-            </AnimatePresence>
+              </AnimatePresence>
+            , document.body)}
 
             {/* ── MESSAGE ── */}
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.3, ease }}
