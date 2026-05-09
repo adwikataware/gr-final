@@ -674,16 +674,14 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
             {/* ── AI CHAT MODAL ── */}
             <AnimatePresence>
               {aiExpanded && (
-                <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md"
+                  onClick={() => setAiExpanded(false)}
+                >
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-                    onClick={() => setAiExpanded(false)}
-                  />
-                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <motion.div
                       initial={{ opacity: 0, scale: 0.95, y: 20 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -783,8 +781,7 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                         <p className="text-[9px] text-white/20 text-center mt-2">Free · Instant AI Response</p>
                       </div>
                     </motion.div>
-                  </div>
-                </>
+                  </motion.div>
               )}
             </AnimatePresence>
 
