@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   collection, addDoc, onSnapshot, query, orderBy, limit,
@@ -435,6 +435,7 @@ function SendPostModal({ post, currentUid, currentProfile, onClose }: SendPostMo
         postContent: post.content,
         postAuthor: post.authorName,
         postType: post.postType,
+        postId: post.id,
         createdAt: serverTimestamp(),
       });
 
@@ -1196,8 +1197,22 @@ export default function HubPage() {
   const [allScholars, setAllScholars] = useState<Scholar[]>([]);
   const [trendingTopics, setTrendingTopics] = useState<Array<{ tag: string; count: number }>>([]);
   const [events, setEvents] = useState<ResearchEvent[]>([]);
+  const [highlightPostId, setHighlightPostId] = useState<string | null>(null);
   const [showComposer, setShowComposer] = useState(false);
   const [loadingPosts, setLoadingPosts] = useState(true);
+  const searchParams = useSearchParams();
+
+  // Scroll to and highlight post from ?post= param (e.g. shared via messages)
+  useEffect(() => {
+    const postId = searchParams.get("post");
+    if (!postId || loadingPosts) return;
+    setHighlightPostId(postId);
+    setTimeout(() => {
+      const el = document.getElementById(`post-${postId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => setHighlightPostId(null), 3000);
+    }, 300);
+  }, [searchParams, loadingPosts]);
   const [bookmarks, setBookmarks] = useState<Set<string>>(new Set());
   const [savedPosts, setSavedPosts] = useState<Post[]>([]);
   const [peekScholar, setPeekScholar] = useState<Scholar | null>(null);
@@ -1459,8 +1474,9 @@ export default function HubPage() {
                 </div>
               ) : (
                 filteredPosts.map((post, index) => (
-                  <motion.div key={post.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: index < 5 ? index * 0.06 : 0 }}>
+                  <motion.div key={post.id} id={`post-${post.id}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index < 5 ? index * 0.06 : 0 }}
+                    className={highlightPostId === post.id ? "ring-2 ring-warm-brown rounded-xl" : ""}>
                     <PostCard
                       post={post}
                       currentUid={user?.uid || null}

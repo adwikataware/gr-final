@@ -39,6 +39,7 @@ interface RawMessage {
   postContent?: string;
   postAuthor?: string;
   postType?: string;
+  postId?: string;
   createdAt: { seconds: number } | null;
 }
 
@@ -50,6 +51,7 @@ interface Message {
   postContent?: string;
   postAuthor?: string;
   postType?: string;
+  postId?: string;
   createdAt: { seconds: number } | null;
 }
 
@@ -351,6 +353,7 @@ export default function MessagesPage() {
           postContent: raw.postContent,
           postAuthor: raw.postAuthor,
           postType: raw.postType,
+          postId: raw.postId,
           createdAt: raw.createdAt,
         };
       }
@@ -570,8 +573,11 @@ export default function MessagesPage() {
                         <p className={`text-[10px] text-text-muted mb-1 ${isMine ? "text-right" : ""}`}>
                           {isMine ? "You shared a post" : "Shared a post"}
                         </p>
-                        {/* Post card */}
-                        <div className="bg-white border border-clay-muted/30 rounded-2xl overflow-hidden shadow-sm">
+                        {/* Post card — clickable */}
+                        <Link
+                          href={msg.postId ? `/hub?post=${msg.postId}` : "/hub"}
+                          className="block bg-white border border-clay-muted/30 rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:border-warm-brown/30 transition-all"
+                        >
                           {msg.postType && msg.postType !== "General" && (
                             <div className="px-4 pt-3 pb-1">
                               <span className="px-2 py-0.5 text-[10px] font-semibold italic font-serif rounded-full bg-warm-brown/10 text-warm-brown">
@@ -587,10 +593,13 @@ export default function MessagesPage() {
                               {msg.postContent}
                             </p>
                           </div>
-                          <div className="px-4 py-2.5 border-t border-clay-muted/20 bg-cream-50">
+                          <div className="px-4 py-2.5 border-t border-clay-muted/20 bg-cream-50 flex items-center justify-between">
                             <p className="text-[10px] text-text-muted">Shared via GR Connect · Research Hub</p>
+                            <svg className="w-3 h-3 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path d="M9 5l7 7-7 7" />
+                            </svg>
                           </div>
-                        </div>
+                        </Link>
                         <p className={`text-[10px] text-text-muted mt-1 ${isMine ? "text-right" : ""}`}>
                           {formatTime(msg.createdAt)}
                         </p>
