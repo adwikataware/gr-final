@@ -228,9 +228,11 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
   const [publications, setPublications] = useState<Publication[]>([]);
   const [pubsLoading, setPubsLoading] = useState(false);
   const [expertEmail, setExpertEmail] = useState("");
+  const [aiMessages, setAiMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [aiQuery, setAiQuery] = useState("");
-  const [aiResponse, setAiResponse] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiExpanded, setAiExpanded] = useState(false);
+  const aiChatBottomRef = useRef<HTMLDivElement>(null);
   const [showGRCard, setShowGRCard] = useState(false);
   const [messageSending, setMessageSending] = useState(false);
   const [msgError, setMsgError] = useState("");
@@ -268,16 +270,31 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
 
   const handleAiSubmit = async () => {
     if (!aiQuery.trim() || aiLoading) return;
-    setAiLoading(true); setAiResponse("");
+    const userMsg = { role: "user" as const, content: aiQuery.trim() };
+    const updatedMessages = [...aiMessages, userMsg];
+    setAiMessages(updatedMessages);
+    setAiQuery("");
+    setAiLoading(true);
+    setTimeout(() => aiChatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: aiQuery, expertName: expert?.name, expertise: expert?.topics, publications: expert?.publications_count || 0 }),
+        body: JSON.stringify({
+          messages: updatedMessages,
+          expertName: expert?.name,
+          expertise: expert?.topics,
+          publications: expert?.publications_count || 0,
+        }),
       });
       const data = await res.json();
-      setAiResponse(data.answer ?? data.error ?? "No response.");
-    } catch { setAiResponse("Failed to get AI response."); }
-    finally { setAiLoading(false); }
+      const assistantMsg = { role: "assistant" as const, content: data.answer ?? data.error ?? "No response." };
+      setAiMessages(prev => [...prev, assistantMsg]);
+    } catch {
+      setAiMessages(prev => [...prev, { role: "assistant", content: "Failed to get a response. Please try again." }]);
+    } finally {
+      setAiLoading(false);
+      setTimeout(() => aiChatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    }
   };
 
   const handleStartConversation = async () => {
@@ -613,46 +630,162 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
             {/* ── AI ASSISTANT ── */}
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.2, ease }}
               className="bg-charcoal rounded-xl overflow-hidden border border-warm-brown/10 shadow-xl">
-              <div className="px-5 py-4 border-b border-white/5 flex items-center gap-3">
-                <div className="w-8 h-8 bg-warm-brown/20 rounded-lg flex items-center justify-center">
+              {/* Header — click to expand */}
+              <button
+                onClick={() => setAiExpanded(true)}
+                className="w-full px-5 py-4 border-b border-white/5 flex items-center gap-3 hover:bg-white/5 transition-colors"
+              >
+                <div className="w-8 h-8 bg-warm-brown/20 rounded-lg flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-accent-tan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
                     <path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
                   </svg>
                 </div>
-                <div>
+                <div className="flex-1 text-left">
                   <h3 className="text-white font-semibold text-sm">AI Assistant</h3>
-                  {expert.publications_count > 0 && (
-                    <p className="text-white/40 text-[10px]">Trained on {expert.publications_count} papers</p>
-                  )}
+                  <p className="text-white/40 text-[10px]">
+                    {aiMessages.length > 0 ? `${aiMessages.filter(m => m.role === "user").length} message${aiMessages.filter(m => m.role === "user").length !== 1 ? "s" : ""}` : expert.publications_count > 0 ? `Trained on ${expert.publications_count} papers` : "Ask about their research"}
+                  </p>
                 </div>
-              </div>
-              <div className="p-5 space-y-3">
-                <p className="text-[10px] font-bold text-accent-tan uppercase tracking-widest">
-                  What do you want to know about {expert.name.split(" ")[0]}&apos;s research?
-                </p>
-                <div className="relative">
-                  <input type="text" value={aiQuery} onChange={(e) => setAiQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAiSubmit()}
-                    placeholder={`e.g. Findings on ${expert.topics[0] || "research"}...`}
-                    className="w-full pl-3 pr-10 py-2.5 bg-white/5 border border-white/10 rounded-lg text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-warm-brown/50" />
-                  <button onClick={handleAiSubmit} disabled={aiLoading}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-accent-tan hover:text-white disabled:opacity-40 transition-colors">
-                    {aiLoading
-                      ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 3v3m0 12v3M3 12h3m12 0h3" /></svg>
-                      : <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M5 12h14M12 5l7 7-7 7" /></svg>}
-                  </button>
-                </div>
-                <AnimatePresence>
-                  {aiResponse && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
-                      className="bg-white/5 border border-white/10 rounded-lg p-3 text-xs text-white/80 leading-relaxed">
-                      {aiResponse}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <p className="text-[9px] text-white/20 text-center">Free · Instant AI Response</p>
+                <svg className="w-3.5 h-3.5 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                </svg>
+              </button>
+              {/* Preview of last message if any */}
+              <div className="p-4">
+                {aiMessages.length === 0 ? (
+                  <p className="text-xs text-white/30 text-center py-2">Click to start chatting about {expert.name.split(" ")[0]}&apos;s research</p>
+                ) : (
+                  <div className="space-y-1.5 max-h-24 overflow-hidden relative">
+                    {aiMessages.slice(-2).map((m, i) => (
+                      <div key={i} className={`text-[11px] px-3 py-2 rounded-lg ${m.role === "user" ? "bg-warm-brown/20 text-white/80 ml-4" : "bg-white/5 text-white/60 mr-4"}`}>
+                        {m.content.slice(0, 80)}{m.content.length > 80 ? "..." : ""}
+                      </div>
+                    ))}
+                    <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-charcoal to-transparent" />
+                  </div>
+                )}
+                <button onClick={() => setAiExpanded(true)}
+                  className="mt-3 w-full py-2 text-xs font-semibold text-white/60 hover:text-white border border-white/10 hover:border-white/20 rounded-lg transition-colors">
+                  {aiMessages.length > 0 ? "Continue conversation →" : "Open chat →"}
+                </button>
               </div>
             </motion.div>
+
+            {/* ── AI CHAT MODAL ── */}
+            <AnimatePresence>
+              {aiExpanded && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+                    onClick={() => setAiExpanded(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                    className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+                  >
+                    <div className="bg-charcoal rounded-2xl shadow-2xl w-full max-w-lg flex flex-col pointer-events-auto border border-warm-brown/20"
+                      style={{ height: "min(640px, 85vh)" }}>
+                      {/* Modal header */}
+                      <div className="px-5 py-4 border-b border-white/10 flex items-center gap-3 shrink-0">
+                        <div className="w-8 h-8 bg-warm-brown/20 rounded-lg flex items-center justify-center shrink-0">
+                          <svg className="w-4 h-4 text-accent-tan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                            <path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-white font-semibold text-sm">AI Assistant</h3>
+                          <p className="text-white/40 text-[10px] truncate">Ask about {expert.name}&apos;s research or how to connect on GR</p>
+                        </div>
+                        <button onClick={() => setAiExpanded(false)}
+                          className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/10 text-white/50 hover:text-white transition-colors shrink-0">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* Messages */}
+                      <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+                        {aiMessages.length === 0 && (
+                          <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 py-8">
+                            <div className="w-12 h-12 bg-warm-brown/20 rounded-full flex items-center justify-center">
+                              <svg className="w-5 h-5 text-accent-tan" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                                <path d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+                              </svg>
+                            </div>
+                            <div>
+                              <p className="text-white/70 text-sm font-medium mb-1">Ask anything about {expert.name.split(" ")[0]}</p>
+                              <p className="text-white/30 text-xs">Research topics, how to connect, booking a session...</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 justify-center mt-2">
+                              {[
+                                `What is ${expert.name.split(" ")[0]}'s main research?`,
+                                "How do I connect with them?",
+                                "How do I book a session?",
+                              ].map(q => (
+                                <button key={q} onClick={() => { setAiQuery(q); }}
+                                  className="px-3 py-1.5 text-[11px] bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/80 border border-white/10 rounded-full transition-colors text-left">
+                                  {q}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {aiMessages.map((msg, i) => (
+                          <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap ${
+                              msg.role === "user"
+                                ? "bg-warm-brown text-white rounded-br-sm"
+                                : "bg-white/8 border border-white/10 text-white/80 rounded-bl-sm"
+                            }`}>
+                              {msg.content}
+                            </div>
+                          </div>
+                        ))}
+                        {aiLoading && (
+                          <div className="flex justify-start">
+                            <div className="bg-white/8 border border-white/10 px-4 py-3 rounded-2xl rounded-bl-sm flex gap-1 items-center">
+                              <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                              <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                              <span className="w-1.5 h-1.5 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                            </div>
+                          </div>
+                        )}
+                        <div ref={aiChatBottomRef} />
+                      </div>
+
+                      {/* Input */}
+                      <div className="px-4 pb-4 pt-3 border-t border-white/10 shrink-0">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={aiQuery}
+                            onChange={e => setAiQuery(e.target.value)}
+                            onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleAiSubmit()}
+                            placeholder="Ask a question..."
+                            autoFocus
+                            className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white placeholder:text-white/25 focus:outline-none focus:border-warm-brown/50 transition-colors"
+                          />
+                          <button onClick={handleAiSubmit} disabled={!aiQuery.trim() || aiLoading}
+                            className="w-9 h-9 flex items-center justify-center bg-warm-brown rounded-xl hover:bg-warm-brown/80 disabled:opacity-40 transition-colors shrink-0">
+                            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                              <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                            </svg>
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-white/20 text-center mt-2">Free · Instant AI Response</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
 
             {/* ── MESSAGE ── */}
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.3, ease }}
