@@ -199,23 +199,23 @@ export default function DiscoverPage() {
       <div className="max-w-7xl mx-auto px-6 py-10 flex gap-8">
 
         {/* LEFT SIDEBAR */}
-        <aside className="w-64 shrink-0 sticky top-24 overflow-y-auto max-h-[calc(100vh-6rem)] pr-1 hidden lg:block">
-          <div className="space-y-6">
+        <aside className="w-56 shrink-0 sticky top-24 hidden lg:block self-start">
+          <div className="flex flex-col gap-4">
 
             {/* Search */}
             <div className="relative">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" />
               </svg>
               <input type="text" placeholder="Name, topic, institution..."
                 value={search} onChange={(e) => { setSearch(e.target.value); setVisibleCount(PAGE_SIZE); }}
-                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-lg border border-warm-brown/20 bg-white focus:outline-none focus:border-warm-brown placeholder:text-text-muted/50 transition shadow-sm" />
+                className="w-full pl-8 pr-3 py-2 text-xs rounded-lg border border-warm-brown/20 bg-white focus:outline-none focus:border-warm-brown placeholder:text-text-muted/50 transition shadow-sm" />
             </div>
 
             {/* Tier */}
             <div>
-              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2.5">GR Tier</p>
-              <div className="space-y-1">
+              <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-1.5">GR Tier</p>
+              <div className="flex flex-col gap-0.5">
                 {[
                   { label: "All Tiers", value: "All" },
                   { label: "GR-A", value: "GR-A", dot: "#3D2B1F" },
@@ -225,8 +225,8 @@ export default function DiscoverPage() {
                   { label: "GR-E", value: "GR-E", dot: "#ccc" },
                 ].map(({ label, value, dot }) => (
                   <button key={value} onClick={() => { setSelectedTier(value); setVisibleCount(PAGE_SIZE); }}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all ${selectedTier === value ? "bg-charcoal text-white" : "text-charcoal hover:bg-warm-brown/8"}`}>
-                    {dot && <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: dot }} />}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all ${selectedTier === value ? "bg-charcoal text-white" : "text-charcoal hover:bg-warm-brown/8"}`}>
+                    {dot && <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dot }} />}
                     {label}
                   </button>
                 ))}
@@ -235,32 +235,32 @@ export default function DiscoverPage() {
 
             {/* Min GR Rating */}
             <div>
-              <div className="flex justify-between items-center mb-2.5">
-                <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Min GR Rating</p>
-                <span className="text-xs font-semibold text-warm-brown">{minRating > 0 ? `≥ ${minRating}` : "Any"}</span>
+              <div className="flex justify-between items-center mb-1.5">
+                <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest">Min GR Rating</p>
+                <span className="text-[10px] font-semibold text-warm-brown">{minRating > 0 ? `≥ ${minRating}` : "Any"}</span>
               </div>
               <input type="range" min={0} max={100} step={10} value={minRating}
                 onChange={(e) => { setMinRating(Number(e.target.value)); setVisibleCount(PAGE_SIZE); }}
-                className="w-full accent-warm-brown h-1.5 rounded-full" />
-              <div className="flex justify-between text-[9px] text-text-muted mt-1">
-                <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+                className="w-full accent-warm-brown h-1 rounded-full" />
+              <div className="flex justify-between text-[8px] text-text-muted mt-0.5">
+                <span>0</span><span>50</span><span>100</span>
               </div>
             </div>
 
             {/* SDG Alignment */}
             <div>
-              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2.5">SDG Alignment</p>
-              <div className="grid grid-cols-4 gap-1.5">
+              <p className="text-[9px] font-bold text-text-muted uppercase tracking-widest mb-1.5">SDG Alignment</p>
+              <div className="grid grid-cols-5 gap-1">
                 {Array.from({ length: 17 }, (_, i) => i + 1).map((sdgId) => {
                   const meta = SDG_META_DISCOVER[sdgId];
                   const active = selectedSdgs.has(sdgId);
                   return (
                     <button key={sdgId} title={meta?.label}
                       onClick={() => { toggleSdg(sdgId); setVisibleCount(PAGE_SIZE); }}
-                      className="relative aspect-square rounded-lg overflow-hidden transition-all hover:scale-105"
+                      className="relative aspect-square rounded overflow-hidden transition-all hover:scale-105"
                       style={{
                         opacity: selectedSdgs.size === 0 || active ? 1 : 0.35,
-                        boxShadow: active ? `0 0 0 2px white, 0 0 0 3.5px ${meta?.color ?? "#888"}` : "none",
+                        boxShadow: active ? `0 0 0 1.5px white, 0 0 0 3px ${meta?.color ?? "#888"}` : "none",
                       }}>
                       <img
                         src={`https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-${String(sdgId).padStart(2, "0")}.jpg`}
@@ -277,7 +277,7 @@ export default function DiscoverPage() {
             {/* Clear filters */}
             {hasFilters && (
               <button onClick={() => { setSearch(""); setSelectedSdgs(new Set()); setActiveQuick("All"); setSelectedTier("All"); setMinRating(0); setVisibleCount(PAGE_SIZE); }}
-                className="w-full py-2 text-xs font-semibold rounded-lg border border-warm-brown/20 text-warm-brown hover:bg-warm-brown/5 transition-colors">
+                className="w-full py-1.5 text-[11px] font-semibold rounded-lg border border-warm-brown/20 text-warm-brown hover:bg-warm-brown/5 transition-colors">
                 Clear All Filters
               </button>
             )}
