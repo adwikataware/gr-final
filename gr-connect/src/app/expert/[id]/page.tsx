@@ -682,15 +682,16 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                     className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
                     onClick={() => setAiExpanded(false)}
                   />
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 28 }}
-                    className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
-                  >
-                    <div className="bg-charcoal rounded-2xl shadow-2xl w-full max-w-lg flex flex-col pointer-events-auto border border-warm-brown/20"
-                      style={{ height: "min(640px, 85vh)" }}>
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 28 }}
+                      className="bg-charcoal rounded-2xl shadow-2xl w-full max-w-lg flex flex-col border border-warm-brown/20"
+                      style={{ height: "min(640px, 85vh)" }}
+                      onClick={e => e.stopPropagation()}
+                    >
                       {/* Modal header */}
                       <div className="px-5 py-4 border-b border-white/10 flex items-center gap-3 shrink-0">
                         <div className="w-8 h-8 bg-warm-brown/20 rounded-lg flex items-center justify-center shrink-0">
@@ -781,8 +782,8 @@ export default function ExpertProfilePage(props: ExpertPageProps) {
                         </div>
                         <p className="text-[9px] text-white/20 text-center mt-2">Free · Instant AI Response</p>
                       </div>
-                    </div>
-                  </motion.div>
+                    </motion.div>
+                  </div>
                 </>
               )}
             </AnimatePresence>
