@@ -46,6 +46,17 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-cream-bg px-4 py-12">
+      {/* Back button */}
+      <Link
+        href="/"
+        className="fixed top-5 left-5 flex items-center gap-1.5 text-sm text-charcoal/60 hover:text-charcoal transition-colors"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </Link>
+
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}

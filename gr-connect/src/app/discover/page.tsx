@@ -239,11 +239,11 @@ export default function DiscoverPage() {
                 <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">Min GR Rating</p>
                 <span className="text-xs font-semibold text-warm-brown">{minRating > 0 ? `≥ ${minRating}` : "Any"}</span>
               </div>
-              <input type="range" min={0} max={90} step={10} value={minRating}
+              <input type="range" min={0} max={100} step={10} value={minRating}
                 onChange={(e) => { setMinRating(Number(e.target.value)); setVisibleCount(PAGE_SIZE); }}
                 className="w-full accent-warm-brown h-1.5 rounded-full" />
               <div className="flex justify-between text-[9px] text-text-muted mt-1">
-                <span>0</span><span>30</span><span>60</span><span>90</span>
+                <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
               </div>
             </div>
 
@@ -251,20 +251,23 @@ export default function DiscoverPage() {
             <div>
               <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest mb-2.5">SDG Alignment</p>
               <div className="grid grid-cols-4 gap-1.5">
-                {Object.entries(SDG_META_DISCOVER).map(([id, meta]) => {
-                  const sdgId = Number(id);
+                {Array.from({ length: 17 }, (_, i) => i + 1).map((sdgId) => {
+                  const meta = SDG_META_DISCOVER[sdgId];
                   const active = selectedSdgs.has(sdgId);
                   return (
-                    <button key={sdgId} title={meta.label}
+                    <button key={sdgId} title={meta?.label}
                       onClick={() => { toggleSdg(sdgId); setVisibleCount(PAGE_SIZE); }}
-                      className="relative aspect-square rounded-lg text-[10px] font-bold text-white flex flex-col items-center justify-center gap-0.5 transition-all hover:scale-105"
+                      className="relative aspect-square rounded-lg overflow-hidden transition-all hover:scale-105"
                       style={{
-                        backgroundColor: meta.color,
-                        opacity: selectedSdgs.size === 0 || active ? 1 : 0.4,
-                        boxShadow: active ? `0 0 0 2px white, 0 0 0 4px ${meta.color}` : "none",
+                        opacity: selectedSdgs.size === 0 || active ? 1 : 0.35,
+                        boxShadow: active ? `0 0 0 2px white, 0 0 0 3.5px ${meta?.color ?? "#888"}` : "none",
                       }}>
-                      <span className="text-[11px] font-bold">{sdgId}</span>
-                      <span className="text-[7px] font-semibold uppercase tracking-wide leading-tight text-center px-0.5 opacity-90 line-clamp-1">{meta.short}</span>
+                      <img
+                        src={`https://sdgs.un.org/sites/default/files/goals/E_SDG_Icons-${String(sdgId).padStart(2, "0")}.jpg`}
+                        alt={`SDG ${sdgId}`}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
                     </button>
                   );
                 })}

@@ -28,12 +28,14 @@ export default function Navbar() {
 
         {/* Center nav */}
         <div className="hidden md:flex items-center gap-8">
-          <Link
-            href="/"
-            className="text-sm text-charcoal/70 hover:text-charcoal transition-colors"
-          >
-            Vision
-          </Link>
+          {isLoggedIn && (
+            <Link
+              href="/"
+              className="text-sm text-charcoal/70 hover:text-charcoal transition-colors"
+            >
+              Vision
+            </Link>
+          )}
           {isLoggedIn && (
             <Link
               href="/discover"
