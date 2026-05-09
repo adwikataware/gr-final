@@ -1083,7 +1083,7 @@ function PostComposerModal({ onClose, onSubmit }: PostComposerProps) {
     if ((!content.trim() && files.length === 0) || submitting) return;
     setSubmitting(true);
     const fileTypes = files.map(f => f.type.startsWith("image/") ? "image" : "pdf");
-    onSubmit(content.trim(), postType, files, previews, fileTypes);
+    await onSubmit(content.trim(), postType, files, previews, fileTypes);
     onClose();
   }
 
